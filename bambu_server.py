@@ -117,13 +117,11 @@ def default_state(printer_cfg):
         "print_name":     "",
         "gcode_state":    "IDLE",
         "errors":         [],
+        "hms_errors":     [],
+        "spd_lvl":        2,
         "last_update":    0,
     }
 
-# Ensure every printer has an id, generate one if missing
-for i, cfg in enumerate(CONFIG["printers"]):
-    if "id" not in cfg:
-        cfg["id"] = f"printer{i+1}"
 printer_states = {cfg["id"]: default_state(cfg) for cfg in CONFIG["printers"]}
 state_lock = threading.Lock()
 
@@ -253,7 +251,6 @@ def api_thumbnail(printer_id):
             img_data     = img_resp.read()
             content_type = img_resp.headers.get("Content-Type", "image/jpeg")
 
-        from flask import Response
         return Response(img_data, mimetype=content_type)
 
     except Exception as e:
@@ -385,6 +382,7 @@ def parse_print_message(state, msg):
     if 'total_layer_num'  in p: state['layer_total']    = int(p['total_layer_num'])
     if 'mc_remaining_time'in p: state['time_remaining'] = int(p['mc_remaining_time'])
     if 'subtask_name'     in p: state['print_name']     = p.get('subtask_name', '')
+    if 'spd_lvl'          in p: state['spd_lvl']         = int(p['spd_lvl'])
 
     if 'gcode_state' in p:
         state['gcode_state'] = p['gcode_state']
@@ -397,6 +395,24 @@ def parse_print_message(state, msg):
             state['errors'].append(msg_text)
             if len(state['errors']) > 5:
                 state['errors'].pop(0)
+
+    # HMS errors — array of {attr, code} objects from printer
+    if 'hms' in p:
+        hms_list = p['hms']
+        if isinstance(hms_list, list) and len(hms_list) > 0:
+            formatted = []
+            for h in hms_list:
+                attr = h.get('attr', 0)
+                code = h.get('code', 0)
+                # Format as XXXX-XXXX-XXXX-XXXX for wiki URL
+                a1 = (attr >> 16) & 0xFFFF
+                a2 = attr & 0xFFFF
+                c1 = (code >> 16) & 0xFFFF
+                c2 = code & 0xFFFF
+                formatted.append(f"{a1:04X}-{a2:04X}-{c1:04X}-{c2:04X}")
+            state['hms_errors'] = formatted
+        else:
+            state['hms_errors'] = []
 
     if p.get('gcode_state') == 'FINISH':
         state['errors'] = []

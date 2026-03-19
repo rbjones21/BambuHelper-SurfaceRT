@@ -59,13 +59,22 @@
   .print-meta { display: flex; gap: 16px; margin-top: 4px; font-family: 'Share Tech Mono', monospace; font-size: 14px; color: var(--muted); flex-wrap: wrap; }
   .print-meta span strong { color: var(--text); }
   .ctrl-btns { display: flex; gap: 8px; flex-shrink: 0; }
-  .ctrl-btn { width: 44px; height: 44px; border-radius: 6px; border: 1px solid var(--bdr); background: rgba(255,255,255,0.04); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.15s; }
-  .ctrl-btn:hover  { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
-  .ctrl-btn:active { transform: scale(0.92); }
-  .ctrl-btn.pause  { color: #ffcc00; border-color: rgba(255,204,0,0.25); }
-  .ctrl-btn.resume { color: #00ff88; border-color: rgba(0,255,136,0.25); }
-  .ctrl-btn.stop   { color: #ff3344; border-color: rgba(255,51,68,0.25); }
-  .ctrl-btn:disabled { opacity: 0.2; cursor: not-allowed; pointer-events: none; }
+
+  /* Speed profile badge */
+  .spd-badge { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 72px; height: 44px; border-radius: 6px; border: 1px solid var(--bdr); background: rgba(255,255,255,0.04); padding: 0 10px; gap: 1px; flex-shrink: 0; }
+  .spd-icon  { font-size: 14px; line-height: 1; }
+  .spd-label { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); line-height: 1; }
+  .spd-1 { border-color: rgba(100,180,255,0.3); color: #64b4ff; }
+  .spd-2 { border-color: rgba(0,200,100,0.3);  color: #00c864; }
+  .spd-3 { border-color: rgba(255,160,0,0.3);  color: #ffa000; }
+  .spd-4 { border-color: rgba(255,50,50,0.3);  color: #ff3232; }
+
+  /* HMS QR panel — shown instead of speed badge when error active */
+  .hms-panel { display: flex; align-items: center; gap: 8px; min-width: 130px; height: 44px; border-radius: 6px; border: 1px solid rgba(255,50,68,0.4); background: rgba(255,30,50,0.07); padding: 0 8px; flex-shrink: 0; cursor: pointer; }
+  .hms-qr    { width: 36px; height: 36px; flex-shrink: 0; }
+  .hms-info  { display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
+  .hms-title { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: #ff4455; }
+  .hms-code  { font-size: 8px; font-family: 'Share Tech Mono', monospace; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px; }
   .led-sect { padding: 8px 14px 6px; flex-shrink: 0; }
   .led-row1 { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
   .led-fn { font-family: 'Share Tech Mono', monospace; font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 66%; }
@@ -276,7 +285,40 @@ function printIcon(s) {
 }
 
 // Send control command to server
-async function sendCmd(printerId, cmd) {
+// Speed profile labels and icons
+const SPD_MAP = {
+  1: { label: 'Silent',     icon: '🐢' },
+  2: { label: 'Standard',   icon: '▶' },
+  3: { label: 'Sport',      icon: '⚡' },
+  4: { label: 'Ludicrous',  icon: '🚀' },
+};
+
+// Generate a tiny QR code as SVG data URI using qrcode-svg approach
+// We use the Google Charts API which works via URL — no JS lib needed
+function hmsQRUrl(code) {
+  const url = `https://wiki.bambulab.com/en/hms/hmscode/HMS_${code}`;
+  return `https://api.qrserver.com/v1/create-qr-code/?size=72x72&data=${encodeURIComponent(url)}`;
+}
+
+function spdBadge(lvl) {
+  const s = SPD_MAP[lvl] || SPD_MAP[2];
+  return `<div class="spd-badge spd-${lvl}" title="Print speed: ${s.label}">
+    <div class="spd-icon">${s.icon}</div>
+    <div class="spd-label">${s.label}</div>
+  </div>`;
+}
+
+function hmsBadge(hmsErrors) {
+  const code = hmsErrors[0];
+  const wikiUrl = `https://wiki.bambulab.com/en/hms/hmscode/HMS_${code}`;
+  return `<div class="hms-panel" onclick="window.open('${wikiUrl}')" title="Scan or tap to view HMS error guide">
+    <img class="hms-qr" src="${hmsQRUrl(code)}" alt="HMS QR">
+    <div class="hms-info">
+      <div class="hms-title">⚠ HMS Error</div>
+      <div class="hms-code">${code}</div>
+    </div>
+  </div>`;
+}
   try {
     const res = await fetch('/api/printer/control', {
       method: 'POST',
@@ -309,12 +351,11 @@ function panel(s, idx){
   const offline = !s.connected ? `<div class="offline"><div class="on">${s.name}</div><div class="om">Reconnecting</div><div class="dots"><span></span><span></span><span></span></div></div>` : '';
   const errStrip = (s.errors&&s.errors.length) ? `<div class="err-strip">⚠ ${s.errors[s.errors.length-1]}</div>` : '';
 
-  // Control buttons
-  const ctrlBtns = isActive ? `<div class="ctrl-btns">
-    ${isPrinting ? `<button class="ctrl-btn pause"  onclick="sendCmd('${s.id}','pause')"  title="Pause">⏸</button>` : ''}
-    ${isPaused   ? `<button class="ctrl-btn resume" onclick="sendCmd('${s.id}','resume')" title="Resume">▶</button>` : ''}
-    <button class="ctrl-btn stop" onclick="confirmStop('${s.id}')" title="Stop">■</button>
-  </div>` : '';
+  // Speed badge or HMS QR — replaces old control buttons
+  const hasHMS = s.hms_errors && s.hms_errors.length > 0;
+  const ctrlBtns = isActive
+    ? (hasHMS ? hmsBadge(s.hms_errors) : spdBadge(s.spd_lvl || 2))
+    : '';
 
   // ETA clock time
   const etaClock = s.time_remaining>0
@@ -430,11 +471,6 @@ async function loadThumb(printerId) {
   } catch(e) {}
 }
 
-function confirmStop(printerId) {
-  if (confirm('Stop the print? This cannot be undone.')) {
-    sendCmd(printerId, 'stop');
-  }
-}
 
 // Network status — checks Surface RT's WiFi signal
 async function updateNetStatus() {
