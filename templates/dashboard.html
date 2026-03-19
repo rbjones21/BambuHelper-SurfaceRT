@@ -50,7 +50,29 @@
   .badge.idle     { color: var(--muted); }
   .badge.offline  { color: var(--muted); }
 
-  /* LED bar section */
+  /* Print info card — sits between panel header and LED bar */
+  .print-card { display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--bdr); flex-shrink: 0; background: rgba(255,255,255,0.02); }
+
+  /* Thumbnail / print icon */
+  .thumb { width: 52px; height: 52px; border-radius: 6px; background: var(--track); border: 1px solid var(--bdr); display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; font-size: 26px; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 5px; }
+
+  /* Print info text */
+  .print-info { flex: 1; min-width: 0; }
+  .print-title { font-size: 15px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.5px; }
+  .print-meta { display: flex; gap: 14px; margin-top: 3px; font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--muted); }
+  .print-meta span strong { color: var(--text); }
+  .print-eta { font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* Control buttons */
+  .ctrl-btns { display: flex; gap: 6px; flex-shrink: 0; }
+  .ctrl-btn { width: 38px; height: 38px; border-radius: 6px; border: 1px solid var(--bdr); background: rgba(255,255,255,0.04); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.15s; }
+  .ctrl-btn:hover  { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
+  .ctrl-btn:active { transform: scale(0.92); }
+  .ctrl-btn.pause  { color: #ffcc00; border-color: rgba(255,204,0,0.25); }
+  .ctrl-btn.resume { color: #00ff88; border-color: rgba(0,255,136,0.25); }
+  .ctrl-btn.stop   { color: #ff3344; border-color: rgba(255,51,68,0.25); }
+  .ctrl-btn:disabled { opacity: 0.2; cursor: not-allowed; pointer-events: none; }
   .led-sect { padding: 8px 14px 6px; flex-shrink: 0; }
   .led-row1 { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
   .led-fn { font-family: 'Share Tech Mono', monospace; font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 66%; }
@@ -167,6 +189,29 @@ function ledBar(pct, col){
   }).join('');
 }
 
+// Print state icon
+function printIcon(s) {
+  if (!s.connected)               return '⬡';
+  if (s.gcode_state === 'FINISH') return '✓';
+  if (s.gcode_state === 'FAILED') return '✕';
+  if (s.gcode_state === 'PAUSE')  return '⏸';
+  if (s.gcode_state === 'RUNNING') return '⬡';
+  return '⬡';
+}
+
+// Send control command to server
+async function sendCmd(printerId, cmd) {
+  try {
+    const res = await fetch('/api/printer/control', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({printer_id: printerId, command: cmd})
+    });
+    const data = await res.json();
+    if (!data.ok) console.error('Control failed:', data.error);
+  } catch(e) { console.error('Control error:', e); }
+}
+
 function fmt(min){ if(!min||min<=0) return '--'; const h=Math.floor(min/60),m=min%60; return h?`${h}h ${m}m`:`${m}m`; }
 
 function stCls(s){
@@ -183,9 +228,35 @@ function panel(s, idx){
   const col   = idx===0 ? '#00c8ff' : '#ff6020';
   const fancol = idx===0 ? '#00c8ff' : '#ff8040';
   const sc    = stCls(s), pct=s.progress||0;
+  const isPrinting = sc==='printing', isPaused=sc==='paused', isActive=isPrinting||isPaused;
 
   const offline = !s.connected ? `<div class="offline"><div class="on">${s.name}</div><div class="om">Reconnecting</div><div class="dots"><span></span><span></span><span></span></div></div>` : '';
   const errStrip = (s.errors&&s.errors.length) ? `<div class="err-strip">⚠ ${s.errors[s.errors.length-1]}</div>` : '';
+
+  // Control buttons
+  const ctrlBtns = isActive ? `<div class="ctrl-btns">
+    ${isPrinting ? `<button class="ctrl-btn pause"  onclick="sendCmd('${s.id}','pause')"  title="Pause">⏸</button>` : ''}
+    ${isPaused   ? `<button class="ctrl-btn resume" onclick="sendCmd('${s.id}','resume')" title="Resume">▶</button>` : ''}
+    <button class="ctrl-btn stop" onclick="confirmStop('${s.id}')" title="Stop">■</button>
+  </div>` : '';
+
+  // ETA clock time
+  const etaClock = s.time_remaining>0
+    ? new Date(Date.now()+s.time_remaining*60000).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false})
+    : '--:--';
+
+  const printCard = `<div class="print-card">
+    <div class="thumb">${printIcon(s)}</div>
+    <div class="print-info">
+      <div class="print-title">${s.print_name||(isActive?'Printing...':'No active print')}</div>
+      <div class="print-meta">
+        <span>Layer <strong>${s.layer_current||0}</strong>/<strong>${s.layer_total||0}</strong></span>
+        <span>Remaining <strong>${fmt(s.time_remaining)}</strong></span>
+        <span>Finish <strong>${etaClock}</strong></span>
+      </div>
+    </div>
+    ${ctrlBtns}
+  </div>`;
 
   const arcNozzle   = arcSVG(Math.round(s.nozzle_temp||0),  300, Math.round(s.nozzle_target||0), col);
   const arcBed      = arcSVG(Math.round(s.bed_temp||0),     120, Math.round(s.bed_target||0),   '#ff9944');
@@ -207,16 +278,13 @@ function panel(s, idx){
       <div class="pnl-name">${s.name}</div>
       <div class="badge ${sc}">${stLbl(s)}</div>
     </div>
+    ${printCard}
     <div class="led-sect">
       <div class="led-row1">
-        <div class="led-fn">${s.print_name||'No active print'}</div>
+        <div class="led-fn">${pct}% complete</div>
         <div class="led-pct">${pct}<sup>%</sup></div>
       </div>
       <div class="led-strip">${ledBar(pct, col)}</div>
-      <div class="led-row2">
-        <span>Layer <b>${s.layer_current||0}</b> / <b>${s.layer_total||0}</b></span>
-        <span>ETA <b>${fmt(s.time_remaining)}</b></span>
-      </div>
     </div>
     <div class="gg">
       <div class="gc">
@@ -257,6 +325,12 @@ function panel(s, idx){
     </div>
     ${errStrip}
   </div>`;
+}
+
+function confirmStop(printerId) {
+  if (confirm('Stop the print? This cannot be undone.')) {
+    sendCmd(printerId, 'stop');
+  }
 }
 
 function render(states){ document.getElementById('printers').innerHTML = states.map((s,i)=>panel(s,i)).join(''); }

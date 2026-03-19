@@ -10,7 +10,7 @@ import ssl
 import threading
 import time
 import logging
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify
 from flask_socketio import SocketIO
 import paho.mqtt.client as mqtt
 
@@ -198,7 +198,58 @@ def broadcast_state():
         data = list(printer_states.values())
     socketio.emit('state_update', data)
 
-@app.route('/api/display/rotate', methods=['POST'])
+@app.route('/api/printer/control', methods=['POST'])
+def api_printer_control():
+    try:
+        data       = request.get_json()
+        printer_id = data.get('printer_id')
+        command    = data.get('command')  # pause, resume, stop
+
+        if command not in ('pause', 'resume', 'stop'):
+            return jsonify({"ok": False, "error": "Invalid command"})
+
+        # Find the printer config
+        printer_cfg = next((p for p in CONFIG["printers"] if p["id"] == printer_id), None)
+        if not printer_cfg:
+            return jsonify({"ok": False, "error": "Printer not found"})
+
+        serial  = printer_cfg["serial"]
+        payload = json.dumps({
+            "print": {
+                "sequence_id": "0",
+                "command": command
+            }
+        })
+
+        # Find the active MQTT client for this printer and publish
+        # We publish via a fresh one-shot client to keep it simple
+        host, port, username, password = get_connection_params(printer_cfg)
+
+        import threading
+        def publish():
+            import paho.mqtt.publish as publish_mqtt
+            import ssl
+            tls = ssl.create_default_context()
+            tls.check_hostname = False
+            tls.verify_mode    = ssl.CERT_NONE
+            publish_mqtt.single(
+                topic   = f"device/{serial}/request",
+                payload = payload,
+                hostname   = host,
+                port       = port,
+                auth       = {"username": username, "password": password},
+                tls        = {"context": tls},
+                protocol   = mqtt.MQTTv311,
+                qos        = 1
+            )
+            log.info(f"[{printer_id}] Sent command: {command}")
+
+        threading.Thread(target=publish, daemon=True).start()
+        return jsonify({"ok": True})
+
+    except Exception as e:
+        log.error(f"Control error: {e}")
+        return jsonify({"ok": False, "error": str(e)})
 def api_display_rotate():
     try:
         data     = request.get_json()
@@ -406,4 +457,4 @@ if __name__ == '__main__':
     threading.Thread(target=periodic_broadcast, daemon=True).start()
 
     log.info("Web server starting on port 5000")
-    socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=False)
