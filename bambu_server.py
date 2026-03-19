@@ -198,6 +198,11 @@ def broadcast_state():
         data = list(printer_states.values())
     socketio.emit('state_update', data)
 
+@app.route('/api/display')
+def api_display():
+    """Return display settings including colors."""
+    return jsonify(CONFIG.get('display', {}))
+
 @app.route('/api/thumbnail/<printer_id>')
 def api_thumbnail(printer_id):
     """Fetch and proxy the current print thumbnail from Bambu cloud task API."""
@@ -336,18 +341,6 @@ def api_printer_control():
 
     except Exception as e:
         log.error(f"Control error: {e}")
-        return jsonify({"ok": False, "error": str(e)})
-def api_display_rotate():
-    try:
-        data     = request.get_json()
-        rotation = data.get('rotation', 'normal')
-        import subprocess
-        subprocess.Popen(
-            ['xrandr', '--output', 'DSI-1', '--rotate', rotation],
-            env={'DISPLAY': ':0', 'XAUTHORITY': '/home/rjones/.Xauthority'}
-        )
-        return jsonify({"ok": True})
-    except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
 # ---------------------------------------------------------------------------
