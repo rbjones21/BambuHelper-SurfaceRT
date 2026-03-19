@@ -208,31 +208,44 @@ def api_thumbnail(printer_id):
 
         token   = printer_cfg.get("bambu_token", "")
         serial  = printer_cfg.get("serial", "")
+
+        import urllib.request, urllib.error
         headers = {
             "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
+            "User-Agent": "bambuhelper-rt/1.0"
         }
 
-        import urllib.request
-        # Fetch task list from Bambu cloud API
-        url = f"https://api.bambulab.com/v1/iot-service/api/user/task?deviceId={serial}&limit=1"
+        # Fetch recent task list — cover field contains thumbnail URL
+        url = f"https://api.bambulab.com/v1/iot-service/api/user/task?deviceId={serial}&limit=3"
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read())
 
-        # Extract cover URL from most recent task
-        tasks = data.get("hits", [])
-        if tasks and tasks[0].get("cover"):
-            cover_url = tasks[0]["cover"]
-            # Proxy the image to avoid CORS issues
-            img_req = urllib.request.Request(cover_url)
-            with urllib.request.urlopen(img_req, timeout=5) as img_resp:
-                img_data = img_resp.read()
-                content_type = img_resp.headers.get("Content-Type", "image/jpeg")
-            from flask import Response
-            return Response(img_data, mimetype=content_type)
+        try:
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            log.warning(f"Thumbnail API HTTP error {e.code} for {printer_id}")
+            return jsonify({"ok": False, "error": f"HTTP {e.code}"})
 
-        return jsonify({"ok": False, "error": "No thumbnail available"})
+        # Find the most recent task with a cover image
+        tasks = data.get("hits", data.get("data", []))
+        cover_url = None
+        for task in tasks:
+            if task.get("cover"):
+                cover_url = task["cover"]
+                break
+
+        if not cover_url:
+            log.info(f"No thumbnail cover found for {printer_id}")
+            return jsonify({"ok": False, "error": "No thumbnail available"})
+
+        # Proxy the image
+        img_req = urllib.request.Request(cover_url, headers={"User-Agent": "bambuhelper-rt/1.0"})
+        with urllib.request.urlopen(img_req, timeout=8) as img_resp:
+            img_data     = img_resp.read()
+            content_type = img_resp.headers.get("Content-Type", "image/jpeg")
+
+        from flask import Response
+        return Response(img_data, mimetype=content_type)
 
     except Exception as e:
         log.warning(f"Thumbnail fetch failed for {printer_id}: {e}")

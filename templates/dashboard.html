@@ -94,13 +94,19 @@
   .arc-u { font-size: clamp(11px, 1.4vw, 14px); color: var(--muted); }
   .arc-tgt { font-family: 'Share Tech Mono', monospace; font-size: clamp(10px, 1.2vw, 13px); color: var(--muted); }
 
-  /* Fan cell */
-  .fan-cell { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px 0; }
-  .fan-v { font-family: 'Share Tech Mono', monospace; font-size: clamp(20px, 3vw, 32px); font-weight: 700; color: var(--text); line-height: 1; }
+  /* Fan cell — now uses same arc style as temp gauges */
+  .fan-cell { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 2px 0; }
+  .fan-v { font-family: 'Share Tech Mono', monospace; font-size: clamp(18px, 2.8vw, 30px); font-weight: 700; color: var(--text); line-height: 1; }
   .fan-v sup { font-size: 0.48em; color: var(--muted); }
-  .fan-icon { font-size: clamp(16px, 2.2vw, 24px); opacity: 0.5; line-height: 1; }
-  .fan-bar { width: 88%; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
-  .fan-fill { height: 100%; border-radius: 3px; transition: width 1s ease; }
+
+  /* Connection status dots in header */
+  .conn-status { display: flex; align-items: center; gap: 10px; }
+  .conn-item { display: flex; align-items: center; gap: 5px; font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--muted); }
+  .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; transition: all 0.4s; }
+  .conn-dot.ok  { background: #00ff88; box-shadow: 0 0 5px #00ff8880; }
+  .conn-dot.err { background: #ff3344; box-shadow: 0 0 5px #ff334480; }
+  .conn-dot.warn { background: #ffcc00; box-shadow: 0 0 5px #ffcc0080; }
+  .conn-label { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
 
   /* Error strip */
   .err-strip { padding: 5px 14px; background: rgba(255,34,68,0.1); border-top: 1px solid rgba(255,34,68,0.2); font-size: 13px; color: #ff4455; font-family: 'Share Tech Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
@@ -120,6 +126,7 @@
   <header>
     <div class="logo">BambuHelper<em>RT</em></div>
     <div class="hdr-r">
+      <div class="conn-status" id="conn-status"></div>
       <div class="clock" id="clk">--:--:--</div>
       <a href="/settings" class="cfg-btn">⚙ Settings</a>
     </div>
@@ -258,10 +265,12 @@ function panel(s, idx){
   const fanCell = (lbl, val, fc) => `
     <div class="gc">
       <div class="gc-lbl">${lbl}</div>
-      <div class="fan-cell">
-        <div class="fan-icon">◈</div>
-        <div class="fan-v">${val||0}<sup>%</sup></div>
-        <div class="fan-bar"><div class="fan-fill" style="width:${val||0}%;background:${fc}"></div></div>
+      <div class="arc-box">
+        ${arcSVG(val||0, 100, 0, fc)}
+        <div class="arc-over">
+          <div class="arc-v">${val||0}</div>
+          <div class="arc-u">%</div>
+        </div>
       </div>
     </div>`;
 
@@ -348,12 +357,22 @@ function confirmStop(printerId) {
   }
 }
 
+function updateConnStatus(states) {
+  const el = document.getElementById('conn-status');
+  if (!el) return;
+  el.innerHTML = states.map(s => {
+    const cls = !s.connected ? 'err' : (s.errors&&s.errors.length) ? 'warn' : 'ok';
+    return `<div class="conn-item">
+      <div class="conn-dot ${cls}"></div>
+      <span class="conn-label">${s.name}</span>
+    </div>`;
+  }).join('');
+}
+
 function render(states){
   document.getElementById('printers').innerHTML = states.map((s,i)=>panel(s,i)).join('');
-  // Load thumbnails after render
-  states.forEach(s => {
-    if (s.connected && s.print_name) loadThumb(s.id);
-  });
+  updateConnStatus(states);
+  states.forEach(s => { if(s.connected && s.print_name) loadThumb(s.id); });
 }
 
 const socket = io();
