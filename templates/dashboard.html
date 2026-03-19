@@ -319,17 +319,6 @@ function hmsBadge(hmsErrors) {
     </div>
   </div>`;
 }
-  try {
-    const res = await fetch('/api/printer/control', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({printer_id: printerId, command: cmd})
-    });
-    const data = await res.json();
-    if (!data.ok) console.error('Control failed:', data.error);
-  } catch(e) { console.error('Control error:', e); }
-}
-
 function fmt(min){ if(!min||min<=0) return '--'; const h=Math.floor(min/60),m=min%60; return h?`${h}h ${m}m`:`${m}m`; }
 
 function stCls(s){
