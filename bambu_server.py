@@ -62,6 +62,20 @@ CLOUD_BROKERS = {
     "eu": "us.mqtt.bambulab.com",   # EU routes via US broker
 }
 
+def extract_uid(token):
+    try:
+        import base64, json
+        parts = token.split('.')
+        if len(parts) >= 2:
+            pad = parts[1] + '=' * (4 - len(parts[1]) % 4)
+            payload = json.loads(base64.urlsafe_b64decode(pad))
+            for key in ('uid', 'user_id', 'userId', 'sub', 'id'):
+                if key in payload:
+                    return str(payload[key])
+    except Exception as e:
+        log.warning(f"Could not decode token: {e}")
+    return None
+
 def get_connection_params(printer_cfg):
     """
     Return (host, port, username, password) based on printer mode.
@@ -81,8 +95,17 @@ def get_connection_params(printer_cfg):
     if mode == "cloud":
         region = printer_cfg.get("region", "us")
         host   = CLOUD_BROKERS.get(region, CLOUD_BROKERS["us"])
-        user   = f"u_{printer_cfg['bambu_user_id']}"
-        pwd    = printer_cfg["bambu_token"]
+        token   = printer_cfg["bambu_token"]
+        user_id = printer_cfg.get("bambu_user_id", "")
+        if not user_id or "@" in str(user_id):
+            user_id = extract_uid(token)
+            if user_id:
+                log.info(f"Extracted user_id from token: {user_id}")
+            else:
+                log.warning("Could not extract user_id from token")
+        user = f"u_{user_id}"
+        pwd  = token
+
     else:
         # LAN mode (default)
         host = printer_cfg["ip"]
