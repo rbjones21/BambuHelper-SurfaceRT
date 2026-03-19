@@ -198,7 +198,45 @@ def broadcast_state():
         data = list(printer_states.values())
     socketio.emit('state_update', data)
 
-@app.route('/api/printer/control', methods=['POST'])
+@app.route('/api/thumbnail/<printer_id>')
+def api_thumbnail(printer_id):
+    """Fetch and proxy the current print thumbnail from Bambu cloud task API."""
+    try:
+        printer_cfg = next((p for p in CONFIG["printers"] if p["id"] == printer_id), None)
+        if not printer_cfg or printer_cfg.get("mode") != "cloud":
+            return jsonify({"ok": False, "error": "Cloud mode only"})
+
+        token   = printer_cfg.get("bambu_token", "")
+        serial  = printer_cfg.get("serial", "")
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+
+        import urllib.request
+        # Fetch task list from Bambu cloud API
+        url = f"https://api.bambulab.com/v1/iot-service/api/user/task?deviceId={serial}&limit=1"
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+
+        # Extract cover URL from most recent task
+        tasks = data.get("hits", [])
+        if tasks and tasks[0].get("cover"):
+            cover_url = tasks[0]["cover"]
+            # Proxy the image to avoid CORS issues
+            img_req = urllib.request.Request(cover_url)
+            with urllib.request.urlopen(img_req, timeout=5) as img_resp:
+                img_data = img_resp.read()
+                content_type = img_resp.headers.get("Content-Type", "image/jpeg")
+            from flask import Response
+            return Response(img_data, mimetype=content_type)
+
+        return jsonify({"ok": False, "error": "No thumbnail available"})
+
+    except Exception as e:
+        log.warning(f"Thumbnail fetch failed for {printer_id}: {e}")
+        return jsonify({"ok": False, "error": str(e)})
 def api_printer_control():
     try:
         data       = request.get_json()
