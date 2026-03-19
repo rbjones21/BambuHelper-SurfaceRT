@@ -120,6 +120,10 @@ def default_state(printer_cfg):
         "last_update":    0,
     }
 
+# Ensure every printer has an id, generate one if missing
+for i, cfg in enumerate(CONFIG["printers"]):
+    if "id" not in cfg:
+        cfg["id"] = f"printer{i+1}"
 printer_states = {cfg["id"]: default_state(cfg) for cfg in CONFIG["printers"]}
 state_lock = threading.Lock()
 
