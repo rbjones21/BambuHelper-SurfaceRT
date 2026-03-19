@@ -461,6 +461,8 @@ def parse_print_message(state, msg):
         state['errors'] = []
 
     state['last_update'] = time.time()
+    # DEBUG — log all keys received so we can identify the stage field name
+    log.info(f"MQTT print keys: {list(p.keys())}")
 
 # ---------------------------------------------------------------------------
 # MQTT client factory
