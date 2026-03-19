@@ -102,8 +102,11 @@ done
 # ── Restart services ──
 info "Restarting services..."
 systemctl restart bambuhelper
-sleep 2
+sleep 3
 systemctl restart bambuhelper-kiosk 2>/dev/null || true
+sleep 5
+# Refresh Chromium kiosk page
+DISPLAY=:0 XAUTHORITY=/home/rjones/.Xauthority xdotool key --clearmodifiers F5 2>/dev/null || true
 
 # ── Cleanup ──
 rm -rf "$TMP"
