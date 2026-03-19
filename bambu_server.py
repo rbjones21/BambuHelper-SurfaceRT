@@ -10,7 +10,7 @@ import ssl
 import threading
 import time
 import logging
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request, Response
 from flask_socketio import SocketIO
 import paho.mqtt.client as mqtt
 
