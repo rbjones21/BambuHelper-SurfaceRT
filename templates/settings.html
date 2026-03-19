@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>BambuHelper — Settings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #0d1117;
+    --panel:    #161b22;
+    --border:   #21262d;
+    --accent:   #00d4ff;
+    --green:    #00cc66;
+    --red:      #ff3355;
+    --yellow:   #ffcc00;
+    --text:     #e6edf3;
+    --muted:    #7d8590;
+    --input-bg: #0d1117;
+    --hover:    #1f2937;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    min-height: 100vh;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo { font-size: 22px; font-weight: 700; color: var(--accent); letter-spacing: 2px; }
+  .logo span { color: var(--text); }
+
+  .nav-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 7px 16px;
+    border-radius: 6px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 1px;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.15s;
+  }
+  .nav-btn:hover, .nav-btn:active { background: var(--hover); color: var(--text); }
+
+  /* ── Page layout ── */
+  .page { max-width: 600px; margin: 0 auto; padding: 20px 16px 40px; }
+
+  .page-title {
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: var(--text);
+  }
+
+  .page-subtitle {
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 24px;
+  }
+
+  /* ── Card ── */
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .card-header h2 {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--accent);
+  }
+
+  .card-header .chevron {
+    color: var(--muted);
+    font-size: 12px;
+    transition: transform 0.2s;
+  }
+
+  .card-header.collapsed .chevron { transform: rotate(-90deg); }
+
+  .card-body { padding: 18px; }
+  .card-body.hidden { display: none; }
+
+  /* ── Printer tabs ── */
+  .printer-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .tab-btn {
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 1px;
+  }
+
+  .tab-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+  }
+
+  /* ── Status badge ── */
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+  }
+
+  .status-dot.connected    { background: var(--green);  box-shadow: 0 0 6px var(--green); }
+  .status-dot.disconnected { background: var(--muted); }
+  .status-dot.error        { background: var(--red);    box-shadow: 0 0 6px var(--red); }
+
+  .status-text { font-size: 14px; font-weight: 600; color: var(--text); }
+  .status-text.connected    { color: var(--green); }
+  .status-text.disconnected { color: var(--muted); }
+
+  /* ── Form fields ── */
+  .field { margin-bottom: 14px; }
+
+  .field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 6px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .field input,
+  .field select,
+  .field textarea {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 14px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color 0.15s;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  .field input:focus,
+  .field select:focus,
+  .field textarea:focus { border-color: var(--accent); }
+
+  .field textarea { resize: vertical; min-height: 80px; }
+
+  .field .hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 5px;
+    line-height: 1.4;
+  }
+
+  .field .hint a { color: var(--accent); text-decoration: none; }
+
+  /* Token instructions box */
+  .token-instructions {
+    background: rgba(0, 212, 255, 0.05);
+    border: 1px solid rgba(0, 212, 255, 0.15);
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+
+  .token-instructions strong { color: var(--text); }
+  .token-instructions ol { padding-left: 16px; margin-top: 6px; }
+  .token-instructions a  { color: var(--accent); text-decoration: none; }
+
+  /* ── Buttons ── */
+  .btn {
+    width: 100%;
+    padding: 12px;
+    border-radius: 6px;
+    border: none;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    text-transform: uppercase;
+  }
+
+  .btn:active { opacity: 0.8; }
+
+  .btn-primary  { background: var(--accent); color: #000; }
+  .btn-danger   { background: var(--red);    color: #fff; margin-top: 8px; }
+  .btn-success  { background: var(--green);  color: #000; }
+
+  /* ── Live stats strip ── */
+  .live-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  .stat-item { display: flex; justify-content: space-between; align-items: center; }
+
+  .stat-item .key {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .stat-item .val {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 14px;
+    color: var(--text);
+  }
+
+  /* ── Toast notification ── */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 24px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    z-index: 999;
+    transition: transform 0.3s ease;
+    white-space: nowrap;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  }
+
+  #toast.show { transform: translateX(-50%) translateY(0); }
+  #toast.success { border-color: var(--green); color: var(--green); }
+  #toast.error   { border-color: var(--red);   color: var(--red); }
+
+  /* ── Select arrow ── */
+  .select-wrap { position: relative; }
+  .select-wrap::after {
+    content: '▾';
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    pointer-events: none;
+  }
+  .select-wrap select { padding-right: 32px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Bambu<span>Helper</span></div>
+  <a href="/" class="nav-btn">◀ Dashboard</a>
+</header>
+
+<div class="page">
+  <div class="page-title">Settings</div>
+  <div class="page-subtitle">Configure printers and connection modes</div>
+
+  <!-- ── Printer Settings Card ── -->
+  <div class="card">
+    <div class="card-header" onclick="toggleCard(this)">
+      <h2>Printer Settings</h2>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="card-body" id="printer-card-body">
+
+      <!-- Printer tabs -->
+      <div class="printer-tabs">
+        <button class="tab-btn active" onclick="switchPrinter(0, this)">Printer 1</button>
+        <button class="tab-btn"       onclick="switchPrinter(1, this)">Printer 2</button>
+      </div>
+
+      <!-- Status -->
+      <div class="status-row" id="status-row">
+        <div class="status-dot disconnected" id="status-dot"></div>
+        <span class="status-text disconnected" id="status-text">Offline</span>
+      </div>
+
+      <!-- Connection mode -->
+      <div class="field">
+        <label>Connection Mode</label>
+        <div class="select-wrap">
+          <select id="mode-select" onchange="onModeChange()">
+            <option value="lan">LAN Mode (Developer Mode required)</option>
+            <option value="cloud">Bambu Cloud (All printers)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- LAN fields -->
+      <div id="lan-fields">
+        <div class="field">
+          <label>Printer IP Address</label>
+          <input type="text" id="field-ip" placeholder="192.168.1.100" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>LAN Access Code</label>
+          <input type="text" id="field-access-code" placeholder="8-character code" autocomplete="off">
+          <div class="hint">Found on printer: Settings → Network → LAN Access Code</div>
+        </div>
+      </div>
+
+      <!-- Cloud fields -->
+      <div id="cloud-fields" style="display:none">
+        <div class="field">
+          <label>Server Region</label>
+          <div class="select-wrap">
+            <select id="field-region">
+              <option value="us">Americas (US)</option>
+              <option value="cn">China (CN)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="token-instructions">
+          <strong>How to get your token:</strong>
+          <ol>
+            <li>Open <a href="https://bambulab.com" target="_blank">bambulab.com</a> and log in</li>
+            <li>Press <strong>F12</strong> to open DevTools</li>
+            <li>Go to <strong>Application</strong> (Chrome/Edge) or <strong>Storage</strong> (Firefox) tab</li>
+            <li>Expand <strong>Cookies → bambulab.com</strong></li>
+            <li>Find and copy the <strong>token</strong> cookie value</li>
+          </ol>
+        </div>
+
+        <div class="field">
+          <label>Access Token</label>
+          <textarea id="field-token" placeholder="Paste your Bambu Cloud token here..."></textarea>
+          <div class="hint">Token valid ~3 months. Your password is NOT stored.</div>
+        </div>
+
+        <div class="field">
+          <label>Bambu User ID</label>
+          <input type="text" id="field-user-id" placeholder="Numeric user ID" autocomplete="off">
+          <div class="hint">
+            Find at:
+            <a href="https://bambulab.com/api/sign-in/legacy" target="_blank">
+              bambulab.com → account → uid field
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Common fields -->
+      <div class="field">
+        <label>Printer Serial Number</label>
+        <input type="text" id="field-serial" placeholder="e.g. 31B8AP5B2600220" autocomplete="off">
+        <div class="hint">Find your serial in Bambu Handy or on the printer's label.</div>
+      </div>
+
+      <div class="field">
+        <label>Printer Name</label>
+        <input type="text" id="field-name" placeholder="e.g. H2D" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="field-enabled" style="width:auto;margin:0">
+          Enable this printer
+        </label>
+      </div>
+
+      <button class="btn btn-primary" onclick="savePrinter()">Save Settings</button>
+      <button class="btn btn-danger"  onclick="clearToken()">Clear Token</button>
+
+      <!-- Live stats -->
+      <div class="live-stats" id="live-stats">
+        <div class="stat-item">
+          <span class="key">State</span>
+          <span class="val" id="stat-state">--</span>
+        </div>
+        <div class="stat-item">
+          <span class="key">Progress</span>
+          <span class="val" id="stat-progress">--%</span>
+        </div>
+        <div class="stat-item">
+          <span class="key">Nozzle</span>
+          <span class="val" id="stat-nozzle">--/--°C</span>
+        </div>
+        <div class="stat-item">
+          <span class="key">Bed</span>
+          <span class="val" id="stat-bed">--/--°C</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── About Card ── -->
+  <div class="card">
+    <div class="card-header collapsed" onclick="toggleCard(this)">
+      <h2>About</h2>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="card-body hidden">
+      <p style="font-size:14px;color:var(--muted);line-height:1.6">
+        BambuHelper Surface RT — a port of
+        <a href="https://github.com/Keralots/BambuHelper" style="color:var(--accent)">
+          Keralots/BambuHelper
+        </a>
+        for Microsoft Surface RT running Debian 12 Linux.<br><br>
+        Connects to Bambu Lab printers via MQTT over TLS.
+        Supports LAN mode (Developer Mode) and Bambu Cloud mode.
+      </p>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── State ──
+let currentPrinterIdx = 0;
+let serverState = [];
+let config = { printers: [{}, {}] };
+
+// ── Fetch config and state on load ──
+async function init() {
+  try {
+    const [cfgRes, stateRes] = await Promise.all([
+      fetch('/api/config'),
+      fetch('/api/state')
+    ]);
+    config      = await cfgRes.json();
+    serverState = await stateRes.json();
+
+    // Pad to 2 printers
+    while (config.printers.length < 2) {
+      config.printers.push({
+        id: `printer${config.printers.length + 1}`,
+        name: `Printer ${config.printers.length + 1}`,
+        mode: 'lan', enabled: true
+      });
+    }
+
+    loadPrinterForm(currentPrinterIdx);
+    updateStats();
+    setInterval(refreshState, 4000);
+  } catch(e) {
+    showToast('Could not connect to server', 'error');
+  }
+}
+
+async function refreshState() {
+  try {
+    const res   = await fetch('/api/state');
+    serverState = await res.json();
+    updateStats();
+  } catch(e) {}
+}
+
+// ── Switch printer tab ──
+function switchPrinter(idx, btn) {
+  currentPrinterIdx = idx;
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', i === idx);
+  });
+  loadPrinterForm(idx);
+  updateStats();
+}
+
+// ── Load form fields from config ──
+function loadPrinterForm(idx) {
+  const p = config.printers[idx] || {};
+  const mode = p.mode || 'lan';
+
+  document.getElementById('mode-select').value      = mode;
+  document.getElementById('field-ip').value         = p.ip || '';
+  document.getElementById('field-access-code').value = p.access_code || '';
+  document.getElementById('field-region').value     = p.region || 'us';
+  document.getElementById('field-token').value      = p.bambu_token || '';
+  document.getElementById('field-user-id').value    = p.bambu_user_id || '';
+  document.getElementById('field-serial').value     = p.serial || '';
+  document.getElementById('field-name').value       = p.name || '';
+  document.getElementById('field-enabled').checked  = p.enabled !== false;
+
+  onModeChange();
+}
+
+// ── Show/hide LAN vs cloud fields ──
+function onModeChange() {
+  const mode = document.getElementById('mode-select').value;
+  document.getElementById('lan-fields').style.display   = mode === 'lan'   ? '' : 'none';
+  document.getElementById('cloud-fields').style.display = mode === 'cloud' ? '' : 'none';
+}
+
+// ── Save printer config ──
+async function savePrinter() {
+  const mode    = document.getElementById('mode-select').value;
+  const idx     = currentPrinterIdx;
+  const printer = config.printers[idx] || {};
+
+  printer.id      = printer.id || `printer${idx + 1}`;
+  printer.name    = document.getElementById('field-name').value.trim()   || `Printer ${idx + 1}`;
+  printer.serial  = document.getElementById('field-serial').value.trim();
+  printer.mode    = mode;
+  printer.enabled = document.getElementById('field-enabled').checked;
+
+  if (mode === 'lan') {
+    printer.ip          = document.getElementById('field-ip').value.trim();
+    printer.access_code = document.getElementById('field-access-code').value.trim();
+    delete printer.bambu_token;
+    delete printer.bambu_user_id;
+    delete printer.region;
+  } else {
+    printer.region        = document.getElementById('field-region').value;
+    printer.bambu_token   = document.getElementById('field-token').value.trim();
+    printer.bambu_user_id = document.getElementById('field-user-id').value.trim();
+    delete printer.ip;
+    delete printer.access_code;
+  }
+
+  config.printers[idx] = printer;
+
+  try {
+    const res = await fetch('/api/config/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast('Settings saved — restarting connection...', 'success');
+    } else {
+      showToast(data.error || 'Save failed', 'error');
+    }
+  } catch(e) {
+    showToast('Could not reach server', 'error');
+  }
+}
+
+// ── Clear token ──
+function clearToken() {
+  document.getElementById('field-token').value   = '';
+  document.getElementById('field-user-id').value = '';
+  showToast('Token cleared', 'success');
+}
+
+// ── Update live stats from server state ──
+function updateStats() {
+  const state = serverState[currentPrinterIdx];
+  if (!state) return;
+
+  const dot  = document.getElementById('status-dot');
+  const txt  = document.getElementById('status-text');
+
+  if (state.connected) {
+    dot.className  = 'status-dot connected';
+    txt.className  = 'status-text connected';
+    txt.textContent = 'Connected';
+  } else {
+    dot.className  = 'status-dot disconnected';
+    txt.className  = 'status-text disconnected';
+    txt.textContent = 'Offline';
+  }
+
+  document.getElementById('stat-state').textContent    = state.gcode_state || '--';
+  document.getElementById('stat-progress').textContent = `${state.progress || 0}%`;
+  document.getElementById('stat-nozzle').textContent   =
+    `${Math.round(state.nozzle_temp || 0)}/${Math.round(state.nozzle_target || 0)}°C`;
+  document.getElementById('stat-bed').textContent      =
+    `${Math.round(state.bed_temp || 0)}/${Math.round(state.bed_target || 0)}°C`;
+}
+
+// ── Collapsible cards ──
+function toggleCard(header) {
+  header.classList.toggle('collapsed');
+  const body = header.nextElementSibling;
+  body.classList.toggle('hidden');
+}
+
+// ── Toast ──
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = `show ${type}`;
+  setTimeout(() => { t.className = type; }, 3000);
+}
+
+init();
+</script>
+</body>
+</html>

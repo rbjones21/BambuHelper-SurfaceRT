@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>BambuHelper</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:    #0a0c0f;
+    --panel: #0f1318;
+    --bdr:   #1a2030;
+    --text:  #e8edf5;
+    --muted: #3a4560;
+    --track: #141820;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100vw; height: 100vh; overflow: hidden; background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; }
+
+  #root { display: grid; grid-template-rows: 42px 1fr; height: 100vh; }
+
+  /* Header */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 14px; background: var(--panel); border-bottom: 1px solid var(--bdr);
+  }
+  .logo { font-size: 17px; font-weight: 700; letter-spacing: 3px; color: #00c8ff; }
+  .logo em { color: var(--text); font-style: normal; }
+  .hdr-r { display: flex; align-items: center; gap: 12px; }
+  .clock { font-family: 'Share Tech Mono', monospace; font-size: 14px; color: var(--muted); letter-spacing: 2px; }
+  .cfg-btn { font-family: 'Rajdhani', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); text-decoration: none; border: 1px solid var(--bdr); padding: 2px 9px; border-radius: 4px; }
+
+  /* Printer columns */
+  #printers { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px; overflow: hidden; }
+
+  /* Panel */
+  .pnl { background: var(--panel); border: 1px solid var(--bdr); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; position: relative; transition: border-color 0.4s; }
+  .pnl.printing { border-color: var(--ac); box-shadow: inset 0 0 0 1px var(--ac); }
+  .pnl.error    { border-color: #ff2244; }
+
+  /* Panel header row */
+  .pnl-hdr { display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid var(--bdr); flex-shrink: 0; }
+  .pnl-name { font-size: 15px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: var(--ac); }
+  .badge { font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; border: 1px solid currentColor; }
+  .badge.printing { color: #00ff88; }
+  .badge.paused   { color: #ffcc00; }
+  .badge.finished { color: #00c8ff; }
+  .badge.error    { color: #ff3344; }
+  .badge.idle     { color: var(--muted); }
+  .badge.offline  { color: var(--muted); }
+
+  /* LED bar section */
+  .led-sect { padding: 6px 10px 4px; flex-shrink: 0; }
+  .led-row1 { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3px; }
+  .led-fn { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 66%; }
+  .led-pct { font-family: 'Share Tech Mono', monospace; font-size: 22px; font-weight: 700; color: var(--text); line-height: 1; }
+  .led-pct sup { font-size: 11px; color: var(--muted); font-weight: 400; }
+  .led-strip { display: flex; gap: 2px; height: 9px; }
+  .seg { flex: 1; border-radius: 2px; background: var(--track); transition: background 0.5s; }
+  .seg.on { background: var(--ac); }
+  .seg.tip { animation: tip 1s ease-in-out infinite; }
+  @keyframes tip { 0%,100%{opacity:1} 50%{opacity:0.35} }
+  .led-row2 { display: flex; justify-content: space-between; margin-top: 3px; font-size: 10px; color: var(--muted); font-family: 'Share Tech Mono', monospace; }
+  .led-row2 b { color: var(--text); font-weight: 600; }
+
+  /* Gauge grid — 3 cols */
+  .gg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; padding: 5px 8px; flex: 1; min-height: 0; }
+
+  /* Gauge cell */
+  .gc { background: var(--track); border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 5px 3px 7px; overflow: hidden; }
+  .gc-lbl { font-size: 8px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+
+  /* Arc gauge */
+  .arc-box { position: relative; width: 100%; }
+  .arc-box svg { width: 100%; height: auto; display: block; }
+  .arc-over { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+  .arc-v { font-family: 'Share Tech Mono', monospace; font-size: clamp(13px, 2.2vw, 21px); font-weight: 700; color: var(--text); line-height: 1; }
+  .arc-u { font-size: clamp(7px, 1.1vw, 10px); color: var(--muted); }
+  .arc-tgt { font-family: 'Share Tech Mono', monospace; font-size: clamp(7px, 0.9vw, 9px); color: var(--muted); }
+
+  /* Fan cell */
+  .fan-cell { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 3px 0; }
+  .fan-v { font-family: 'Share Tech Mono', monospace; font-size: clamp(15px, 2.3vw, 24px); font-weight: 700; color: var(--text); line-height: 1; }
+  .fan-v sup { font-size: 0.48em; color: var(--muted); }
+  .fan-icon { font-size: clamp(12px, 1.8vw, 18px); opacity: 0.5; line-height: 1; }
+  .fan-bar { width: 88%; height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden; }
+  .fan-fill { height: 100%; border-radius: 2px; transition: width 1s ease; }
+
+  /* Error strip */
+  .err-strip { padding: 3px 10px; background: rgba(255,34,68,0.1); border-top: 1px solid rgba(255,34,68,0.2); font-size: 10px; color: #ff4455; font-family: 'Share Tech Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
+
+  /* Offline overlay */
+  .offline { position: absolute; inset: 0; background: rgba(10,12,15,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; border-radius: 8px; z-index: 9; }
+  .offline .on { font-size: 13px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); }
+  .offline .om { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); opacity: 0.5; }
+  .dots { display: flex; gap: 4px; }
+  .dots span { width: 5px; height: 5px; border-radius: 50%; background: var(--muted); animation: dp 1.4s ease-in-out infinite; }
+  .dots span:nth-child(2) { animation-delay:.2s } .dots span:nth-child(3) { animation-delay:.4s }
+  @keyframes dp { 0%,80%,100%{opacity:.15;transform:scale(.8)} 40%{opacity:1;transform:scale(1.1)} }
+</style>
+</head>
+<body>
+<div id="root">
+  <header>
+    <div class="logo">Bambu<em>Helper</em></div>
+    <div class="hdr-r">
+      <div class="clock" id="clk">--:--:--</div>
+      <a href="/settings" class="cfg-btn">⚙ Settings</a>
+    </div>
+  </header>
+  <div id="printers"></div>
+</div>
+<script>
+// Clock
+setInterval(() => { document.getElementById('clk').textContent = new Date().toLocaleTimeString('en-US',{hour12:false}); }, 1000);
+
+// Arc math — 270° sweep starting bottom-left (BambuHelper style)
+const AS = 225, AW = 270;
+function pt(cx,cy,r,deg){ const a=(deg-90)*Math.PI/180; return [cx+r*Math.cos(a), cy+r*Math.sin(a)]; }
+function arcD(cx,cy,r,s,e){
+  const [x1,y1]=pt(cx,cy,r,s), [x2,y2]=pt(cx,cy,r,e);
+  return `M${x1.toFixed(2)} ${y1.toFixed(2)} A${r} ${r} 0 ${((e-s)%360>180?1:0)} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+}
+
+// Colour zones: green → yellow → red (replicates Bambu TFT colour logic)
+function zoneCol(pct, fixed){
+  if(fixed) return fixed;
+  if(pct < 0.60) return '#00e878';
+  if(pct < 0.85) return '#ffcc00';
+  return '#ff3344';
+}
+
+function arcSVG(val, max, tgt, fixed){
+  const cx=50,cy=54,r=38,sw=7, pct=Math.min(Math.max(val/max,0),1);
+  const col = zoneCol(pct, fixed);
+  const td  = arcD(cx,cy,r, AS, AS+AW);
+  const fd  = pct>0.004 ? arcD(cx,cy,r, AS, AS+AW*pct) : '';
+  // Ticks at 0%, 50%, 100%
+  const ticks = [0,0.5,1].map(t=>{
+    const [ox,oy]=pt(cx,cy,r+4,AS+AW*t), [ix,iy]=pt(cx,cy,r-1,AS+AW*t);
+    return `<line x1="${ox.toFixed(1)}" y1="${oy.toFixed(1)}" x2="${ix.toFixed(1)}" y2="${iy.toFixed(1)}" stroke="rgba(255,255,255,.12)" stroke-width="1"/>`;
+  }).join('');
+  // Target marker
+  const tm = (tgt>0&&tgt<=max) ? (()=>{
+    const p2=Math.min(tgt/max,1);
+    const [ox,oy]=pt(cx,cy,r+5,AS+AW*p2), [ix,iy]=pt(cx,cy,r-3,AS+AW*p2);
+    return `<line x1="${ox.toFixed(1)}" y1="${oy.toFixed(1)}" x2="${ix.toFixed(1)}" y2="${iy.toFixed(1)}" stroke="rgba(255,255,255,.55)" stroke-width="1.5" stroke-linecap="round"/>`;
+  })() : '';
+  const glow = fd ? `<path d="${fd}" fill="none" stroke="${col}" stroke-width="${sw+5}" stroke-linecap="round" opacity=".1"/>` : '';
+  return `<svg viewBox="0 0 100 108" xmlns="http://www.w3.org/2000/svg">
+    <path d="${td}" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="${sw}" stroke-linecap="round"/>
+    ${ticks}${glow}
+    ${fd?`<path d="${fd}" fill="none" stroke="${col}" stroke-width="${sw}" stroke-linecap="round"/>`:''}
+    ${tm}
+  </svg>`;
+}
+
+// LED bar — 40 segments
+const LEDS = 40;
+function ledBar(pct, col){
+  const n = Math.round(pct/100*LEDS);
+  return Array.from({length:LEDS},(_,i)=>{
+    const on=i<n, tip=on&&i===n-1;
+    const s=on?`background:${col};box-shadow:0 0 5px ${col}70`:'';
+    return `<div class="seg${on?' on':''}${tip?' tip':''}" style="${s}"></div>`;
+  }).join('');
+}
+
+function fmt(min){ if(!min||min<=0) return '--'; const h=Math.floor(min/60),m=min%60; return h?`${h}h ${m}m`:`${m}m`; }
+
+function stCls(s){
+  if(!s.connected) return 'offline';
+  if(s.errors&&s.errors.length) return 'error';
+  return {RUNNING:'printing',PAUSE:'paused',FINISH:'finished',FAILED:'error'}[s.gcode_state]||'idle';
+}
+function stLbl(s){
+  if(!s.connected) return 'Offline';
+  return {RUNNING:'Printing',PAUSE:'Paused',FINISH:'Finished',FAILED:'Failed'}[s.gcode_state]||'Idle';
+}
+
+function panel(s, idx){
+  const col   = idx===0 ? '#00c8ff' : '#ff6020';
+  const fancol = idx===0 ? '#00c8ff' : '#ff8040';
+  const sc    = stCls(s), pct=s.progress||0;
+
+  const offline = !s.connected ? `<div class="offline"><div class="on">${s.name}</div><div class="om">Reconnecting</div><div class="dots"><span></span><span></span><span></span></div></div>` : '';
+  const errStrip = (s.errors&&s.errors.length) ? `<div class="err-strip">⚠ ${s.errors[s.errors.length-1]}</div>` : '';
+
+  const arcNozzle   = arcSVG(Math.round(s.nozzle_temp||0),  300, Math.round(s.nozzle_target||0), col);
+  const arcBed      = arcSVG(Math.round(s.bed_temp||0),     120, Math.round(s.bed_target||0),   '#ff9944');
+  const arcChamber  = arcSVG(Math.round(s.chamber_temp||0),  60, 0, '#aa66ff');
+
+  const fanCell = (lbl, val, fc) => `
+    <div class="gc">
+      <div class="gc-lbl">${lbl}</div>
+      <div class="fan-cell">
+        <div class="fan-icon">◈</div>
+        <div class="fan-v">${val||0}<sup>%</sup></div>
+        <div class="fan-bar"><div class="fan-fill" style="width:${val||0}%;background:${fc}"></div></div>
+      </div>
+    </div>`;
+
+  return `<div class="pnl ${sc}" style="--ac:${col}">
+    ${offline}
+    <div class="pnl-hdr">
+      <div class="pnl-name">${s.name}</div>
+      <div class="badge ${sc}">${stLbl(s)}</div>
+    </div>
+    <div class="led-sect">
+      <div class="led-row1">
+        <div class="led-fn">${s.print_name||'No active print'}</div>
+        <div class="led-pct">${pct}<sup>%</sup></div>
+      </div>
+      <div class="led-strip">${ledBar(pct, col)}</div>
+      <div class="led-row2">
+        <span>Layer <b>${s.layer_current||0}</b> / <b>${s.layer_total||0}</b></span>
+        <span>ETA <b>${fmt(s.time_remaining)}</b></span>
+      </div>
+    </div>
+    <div class="gg">
+      <div class="gc">
+        <div class="gc-lbl">Nozzle</div>
+        <div class="arc-box">
+          ${arcNozzle}
+          <div class="arc-over">
+            <div class="arc-v">${Math.round(s.nozzle_temp||0)}</div>
+            <div class="arc-u">°C</div>
+            ${(s.nozzle_target>0)?`<div class="arc-tgt">▶${Math.round(s.nozzle_target)}°</div>`:''}
+          </div>
+        </div>
+      </div>
+      <div class="gc">
+        <div class="gc-lbl">Bed</div>
+        <div class="arc-box">
+          ${arcBed}
+          <div class="arc-over">
+            <div class="arc-v">${Math.round(s.bed_temp||0)}</div>
+            <div class="arc-u">°C</div>
+            ${(s.bed_target>0)?`<div class="arc-tgt">▶${Math.round(s.bed_target)}°</div>`:''}
+          </div>
+        </div>
+      </div>
+      <div class="gc">
+        <div class="gc-lbl">Chamber</div>
+        <div class="arc-box">
+          ${arcChamber}
+          <div class="arc-over">
+            <div class="arc-v">${Math.round(s.chamber_temp||0)}</div>
+            <div class="arc-u">°C</div>
+          </div>
+        </div>
+      </div>
+      ${fanCell('Part Fan', s.fan_part, fancol)}
+      ${fanCell('Aux Fan',  s.fan_aux,  '#44aaff')}
+      ${fanCell('Exhaust',  s.fan_chamber, '#aa66ff')}
+    </div>
+    ${errStrip}
+  </div>`;
+}
+
+function render(states){ document.getElementById('printers').innerHTML = states.map((s,i)=>panel(s,i)).join(''); }
+
+const socket = io();
+socket.on('state_update', render);
+fetch('/api/state').then(r=>r.json()).then(render).catch(()=>{});
+</script>
+</body>
+</html>
