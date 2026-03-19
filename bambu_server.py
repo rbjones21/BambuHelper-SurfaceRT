@@ -250,6 +250,42 @@ def api_thumbnail(printer_id):
     except Exception as e:
         log.warning(f"Thumbnail fetch failed for {printer_id}: {e}")
         return jsonify({"ok": False, "error": str(e)})
+
+@app.route('/api/network')
+def api_network():
+    """Return Surface RT WiFi signal strength and connection quality."""
+    try:
+        import subprocess, re
+        result = subprocess.run(['iwconfig', 'mlan0'], capture_output=True, text=True, timeout=3)
+        output = result.stdout
+        signal, ssid = None, None
+        for line in output.splitlines():
+            if 'Signal level' in line:
+                m = re.search(r'Signal level=(-\d+)', line)
+                if m: signal = int(m.group(1))
+            if 'ESSID' in line:
+                m = re.search(r'ESSID:"([^"]+)"', line)
+                if m: ssid = m.group(1)
+        quality = 'good' if signal and signal > -60 else 'fair' if signal and signal > -75 else 'poor'
+        return jsonify({"ok": True, "signal": signal, "ssid": ssid, "quality": quality})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+@app.route('/api/display/rotate', methods=['POST'])
+def api_display_rotate():
+    try:
+        data     = request.get_json()
+        rotation = data.get('rotation', 'normal')
+        import subprocess
+        subprocess.Popen(
+            ['xrandr', '--output', 'DSI-1', '--rotate', rotation],
+            env={'DISPLAY': ':0', 'XAUTHORITY': '/home/rjones/.Xauthority'}
+        )
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+@app.route('/api/printer/control', methods=['POST'])
 def api_printer_control():
     try:
         data       = request.get_json()

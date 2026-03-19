@@ -99,14 +99,19 @@
   .fan-v { font-family: 'Share Tech Mono', monospace; font-size: clamp(18px, 2.8vw, 30px); font-weight: 700; color: var(--text); line-height: 1; }
   .fan-v sup { font-size: 0.48em; color: var(--muted); }
 
-  /* Connection status dots in header */
-  .conn-status { display: flex; align-items: center; gap: 10px; }
-  .conn-item { display: flex; align-items: center; gap: 5px; font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--muted); }
-  .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; transition: all 0.4s; }
-  .conn-dot.ok  { background: #00ff88; box-shadow: 0 0 5px #00ff8880; }
-  .conn-dot.err { background: #ff3344; box-shadow: 0 0 5px #ff334480; }
-  .conn-dot.warn { background: #ffcc00; box-shadow: 0 0 5px #ffcc0080; }
-  .conn-label { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+  /* Connection status in header — Surface RT network only */
+  .net-status { display: flex; align-items: center; gap: 6px; font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--muted); }
+  .net-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; transition: all 0.4s; }
+  .net-dot.ok   { background: #00ff88; box-shadow: 0 0 5px #00ff8880; }
+  .net-dot.err  { background: #ff3344; box-shadow: 0 0 5px #ff334480; }
+  .net-label { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+
+  /* Printer connection dot — lives in the panel name bar */
+  .pnl-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; transition: all 0.4s; }
+  .pnl-dot.ok   { background: #00ff88; box-shadow: 0 0 5px #00ff8880; }
+  .pnl-dot.err  { background: #ff3344; box-shadow: 0 0 5px #ff334480; }
+  .pnl-dot.warn { background: #ffcc00; box-shadow: 0 0 5px #ffcc0080; }
+  .pnl-dot.off  { background: var(--muted); }
 
   /* Error strip */
   .err-strip { padding: 5px 14px; background: rgba(255,34,68,0.1); border-top: 1px solid rgba(255,34,68,0.2); font-size: 13px; color: #ff4455; font-family: 'Share Tech Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
@@ -126,7 +131,10 @@
   <header>
     <div class="logo">BambuHelper<em>RT</em></div>
     <div class="hdr-r">
-      <div class="conn-status" id="conn-status"></div>
+      <div class="net-status" id="net-status">
+        <div class="net-dot" id="net-dot"></div>
+        <span class="net-label" id="net-label">Network</span>
+      </div>
       <div class="clock" id="clk">--:--:--</div>
       <a href="/settings" class="cfg-btn">⚙ Settings</a>
     </div>
@@ -277,7 +285,10 @@ function panel(s, idx){
   return `<div class="pnl ${sc}" style="--ac:${col}">
     ${offline}
     <div class="pnl-hdr">
-      <div class="pnl-name">${s.name}</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="pnl-dot ${!s.connected?'off':(s.errors&&s.errors.length)?'err':sc==='printing'?'ok':sc==='paused'?'warn':'ok'}"></div>
+        <div class="pnl-name">${s.name}</div>
+      </div>
       <div class="badge ${sc}">${stLbl(s)}</div>
     </div>
     ${printCard}
@@ -357,21 +368,31 @@ function confirmStop(printerId) {
   }
 }
 
-function updateConnStatus(states) {
-  const el = document.getElementById('conn-status');
-  if (!el) return;
-  el.innerHTML = states.map(s => {
-    const cls = !s.connected ? 'err' : (s.errors&&s.errors.length) ? 'warn' : 'ok';
-    return `<div class="conn-item">
-      <div class="conn-dot ${cls}"></div>
-      <span class="conn-label">${s.name}</span>
-    </div>`;
-  }).join('');
+// Network status — checks Surface RT's WiFi signal
+async function updateNetStatus() {
+  const dot   = document.getElementById('net-dot');
+  const label = document.getElementById('net-label');
+  try {
+    const res  = await fetch('/api/network', {signal: AbortSignal.timeout(4000)});
+    const data = await res.json();
+    if (data.ok && data.signal) {
+      const bars = data.signal > -60 ? '▂▄▆█' : data.signal > -70 ? '▂▄▆·' : data.signal > -80 ? '▂▄··' : '▂···';
+      dot.className     = `net-dot ${data.quality === 'good' ? 'ok' : data.quality === 'fair' ? 'warn' : 'err'}`;
+      label.textContent = `${bars} ${data.signal}dBm`;
+    } else {
+      dot.className     = 'net-dot ok';
+      label.textContent = 'Online';
+    }
+  } catch(e) {
+    dot.className     = 'net-dot err';
+    label.textContent = 'Offline';
+  }
 }
+setInterval(updateNetStatus, 30000);
+updateNetStatus();
 
 function render(states){
   document.getElementById('printers').innerHTML = states.map((s,i)=>panel(s,i)).join('');
-  updateConnStatus(states);
   states.forEach(s => { if(s.connected && s.print_name) loadThumb(s.id); });
 }
 
