@@ -64,6 +64,9 @@
   .eta-block { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 72px; flex-shrink: 0; gap: 2px; }
   .eta-time  { font-size: 22px; font-weight: 700; letter-spacing: 1px; color: var(--ac, #00c8ff); line-height: 1; font-family: 'Share Tech Mono', monospace; }
   .eta-label { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+
+  /* Current stage status */
+  .print-stage { font-size: 11px; letter-spacing: 0.5px; color: var(--muted); margin-top: 2px; font-style: italic; }
   .led-sect { padding: 8px 14px 6px; flex-shrink: 0; }
   .led-row1 { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
   .led-fn { font-family: 'Share Tech Mono', monospace; font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 66%; }
@@ -313,6 +316,7 @@ function panel(s, idx){
         <span>Layer <strong>${s.layer_current||0}</strong>/<strong>${s.layer_total||0}</strong></span>
         <span>Remaining <strong>${fmt(s.time_remaining)}</strong></span>
       </div>
+      ${(s.stage && s.stage !== 'Printing') ? `<div class="print-stage">${s.stage}</div>` : ''}
     </div>
     ${etaBlock}
   </div>`;

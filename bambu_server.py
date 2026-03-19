@@ -119,6 +119,7 @@ def default_state(printer_cfg):
         "errors":         [],
         "hms_errors":     [],
         "spd_lvl":        2,
+        "stage":          "",
         "last_update":    0,
     }
 
@@ -383,6 +384,48 @@ def parse_print_message(state, msg):
     if 'mc_remaining_time'in p: state['time_remaining'] = int(p['mc_remaining_time'])
     if 'subtask_name'     in p: state['print_name']     = p.get('subtask_name', '')
     if 'spd_lvl'          in p: state['spd_lvl']         = int(p['spd_lvl'])
+
+    STAGE_MAP = {
+        0:   'Printing',
+        1:   'Auto bed leveling',
+        2:   'Heatbed preheating',
+        3:   'Sweeping XY mech mode',
+        4:   'Changing filament',
+        5:   'M400 pause',
+        6:   'Paused (filament runout)',
+        7:   'Heating nozzle',
+        8:   'Calibrating extrusion',
+        9:   'Scanning bed surface',
+        10:  'Inspecting first layer',
+        11:  'Identifying build plate',
+        12:  'Calibrating micro lidar',
+        13:  'Home toolhead',
+        14:  'Cleaning nozzle tip',
+        15:  'Checking extruder temp',
+        16:  'Paused (user)',
+        17:  'Paused (front cover fall)',
+        18:  'Calibrating micro lidar',
+        19:  'Paused (nozzle temp)',
+        20:  'Paused (heat bed temp)',
+        21:  'Filament unloading',
+        22:  'Skip step pause',
+        23:  'Filament loading',
+        24:  'Motor noise calibration',
+        25:  'Paused (AMS lost)',
+        26:  'Paused (low speed of heat break fan)',
+        27:  'Paused (chamber temp)',
+        28:  'Cooling chamber',
+        29:  'Paused (user gcode)',
+        30:  'Motor noise showoff',
+        31:  'Nozzle filament covered',
+        32:  'Cutter error',
+        33:  'First layer error',
+        34:  'Nozzle clog',
+        255: '',
+    }
+    if 'current_stage' in p:
+        stage_id = int(p['current_stage'])
+        state['stage'] = STAGE_MAP.get(stage_id, f'Stage {stage_id}')
 
     if 'gcode_state' in p:
         state['gcode_state'] = p['gcode_state']
