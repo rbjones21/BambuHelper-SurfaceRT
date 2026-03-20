@@ -1,61 +1,127 @@
-# BambuHelper Surface RT — v2 (LAN + Cloud Mode)
+# BambuHelperRT — v1.1.0
 
-Monitors two Bambu Lab printers (H2D + H2C) on a Microsoft Surface RT running Debian 12.
-Supports both **LAN mode** (direct local connection) and **Bambu Cloud mode** per printer —
-you can even mix modes (one printer on LAN, one via cloud).
+A Bambu Lab printer monitor dashboard running on a **Microsoft Surface RT** with Debian 12.
+Connects to one or two printers simultaneously via Bambu Cloud MQTT and displays live status
+on the Surface RT's built-in screen in kiosk mode.
+
+Inspired by [Keralots/BambuHelper](https://github.com/Keralots/BambuHelper) — an ESP32-based
+Bambu printer monitor — this project ports the concept to a full Linux computer, adding a
+web-based dashboard, settings UI, and multi-printer support.
+
+For info on running Debian 12 on a Surface RT:
+[open-rt.gitbook.io](https://open-rt.gitbook.io/open-surfacert/surface-rt/linux)
+
+---
+
+## Hardware
+
+- **Device**: Microsoft Surface RT (Tegra 3, armhf) running Debian 12
+- **Display**: Surface RT built-in 10.6" 1366×768 touchscreen
+- **Network**: WiFi (mlan0), power management disabled for stability
+- **Kiosk**: Chromium launched fullscreen via LXDE autostart
+
+---
+
+## Architecture
+
+```
+Bambu Cloud MQTT → bambu_server.py (Flask + SocketIO :5000) → WebSocket → Chromium kiosk
+```
+
+- `bambu_server.py` — Python MQTT client + Flask/SocketIO server
+- `templates/dashboard.html` — Live dashboard UI
+- `templates/settings.html` — Settings page
+- `/etc/bambuhelper/config.json` — Printer config (never overwritten by updates)
+
+---
+
+## Dashboard Features
+
+### Per-printer panel
+- **Status icon** — SVG icons: play (printing), pause bars (paused), green checkmark (finished), red exclamation (error)
+- **Printer name** with live connection dot (green/red/amber)
+- **Status badge** — Printing / Paused / Finished / Failed / Idle / Offline
+- **Print name** — filename of the active print job
+- **Layer count** — current layer / total layers
+- **Remaining time** — time left in the print
+- **Printer action status** — live stage from the printer: Printing, Changing filament, Auto bed leveling, Heating nozzle, Home toolhead, etc.
+- **ETA** — estimated finish time (12h or 24h format, configurable)
+- **LED progress bar** — H2-style 40-segment bar showing completion %
+- **6 arc gauges** — Nozzle temp, Bed temp, Chamber temp, Part Fan %, Aux Fan %, Exhaust Fan %
+
+### Layout
+- **Two printers**: side-by-side split layout
+- **One printer** (or one disabled): single panel expands full width with larger fonts, bigger gauges laid out in a single row
+
+### Header
+- BambuHelperRT logo
+- WiFi signal strength (mlan0)
+- Clock (12h or 24h)
+- Settings button
+
+---
+
+## Settings Page
+
+### Printer tabs (Printer 1 / Printer 2)
+- Printer name
+- Connection mode: LAN or Cloud
+- Serial number
+- LAN: IP address and access code
+- Cloud: region (US/CN), Bambu user ID, access token
+- Enable/disable toggle — disabled printers are hidden from the dashboard
+
+### Display
+- **Brightness** slider
+- **Rotation** — Normal / Left / Right / Inverted
+- **Display off after print** — minutes after all prints finish before screen turns off (0 = never)
+- **Always on** — override timeout, keep screen on permanently
+- **Show clock after print** — keep screen on showing clock after print completes
+- **Time format** — 12 hour or 24 hour
+
+### Gauge Colors
+- **Theme presets**: Default (dark cyan), Bambu (light grey + green), Mono Green, Neon, Warm, Ocean
+- **Per-gauge color pickers** for arc color, label color, and value color
+- Changes apply to the dashboard immediately on save
+
+### About
+- Project description and links
 
 ---
 
 ## Connection Modes
 
-### LAN Mode (recommended)
-Connects directly to the printer over your local network using MQTT over TLS.
-- Requires **Developer Mode** enabled on the printer
-- Faster updates, no internet dependency
-- Printer and Surface RT must be on the same network
-
-### Cloud Mode
-Connects via Bambu Lab's cloud MQTT broker (`us.mqtt.bambulab.com`).
-- Does **not** require Developer Mode
-- Works even when the printer is on a different network
-- Requires a Bambu account token (see setup below)
-- Slightly slower updates (routed through Bambu's servers)
-
----
-
-## Installation
-
-### 1. Transfer files to the Surface RT
-
-```bash
-scp -r bambuhelper-surface-v2/ root@<SURFACE_RT_IP>:/tmp/
-```
-
-Or copy to a USB drive and transfer manually.
-
-### 2. Run the installer
-
-```bash
-cd /tmp/bambuhelper-surface-v2
-sudo bash install.sh
-```
-
-### 3. Configure your printers
-
-```bash
-nano /etc/bambuhelper/config.json
-```
-
----
-
-## Config Reference
-
-### LAN Mode printer
+### Cloud Mode (H2D, H2C, H2S, P2S)
+Connects via Bambu Lab's cloud MQTT broker. Does not require Developer Mode on the printer.
 
 ```json
 {
   "id": "printer1",
-  "name": "H2D",
+  "name": "FDS H2D",
+  "mode": "cloud",
+  "region": "us",
+  "serial": "YOUR_SERIAL",
+  "bambu_user_id": "YOUR_USER_ID",
+  "bambu_token": "YOUR_TOKEN",
+  "enabled": true
+}
+```
+
+**Getting your token:**
+1. Log into [bambulab.com](https://bambulab.com) in your browser
+2. Open Developer Tools (F12) → Application → Cookies → bambulab.com
+3. Copy the `token` cookie value as `bambu_token`
+4. Find your user ID at: `https://bambulab.com/api/v1/design-user-service/my/preference` — look for `uid`
+
+> Tokens expire every ~3 months. When a printer shows offline and logs show "Bad credentials", get a fresh token and update it in Settings.
+
+### LAN Mode (X1, P1, A1 series with Developer Mode)
+Connects directly to the printer on your local network.
+
+```json
+{
+  "id": "printer1",
+  "name": "My Printer",
   "mode": "lan",
   "ip": "192.168.1.100",
   "serial": "YOUR_SERIAL",
@@ -64,102 +130,89 @@ nano /etc/bambuhelper/config.json
 }
 ```
 
-**Finding LAN credentials on the printer touchscreen:**
-- IP address:    Settings → Network → IP Address
-- Serial number: Settings → Device → Serial Number
-- Access code:   Settings → Network → LAN Access Code
-  *(Enable Developer Mode first: Settings → General → Developer Mode)*
+Requires Developer Mode: Settings → General → Developer Mode on the printer touchscreen.
 
 ---
 
-### Cloud Mode printer
+## Updater
 
-```json
-{
-  "id": "printer2",
-  "name": "H2C",
-  "mode": "cloud",
-  "region": "us",
-  "serial": "YOUR_SERIAL",
-  "bambu_user_id": "123456789",
-  "bambu_token": "eyJ...(long token string)...",
-  "enabled": true
-}
+```bash
+# Check for updates
+sudo bambu-update --check
+
+# Apply update (preserves config.json)
+sudo bambu-update
+
+# Force reinstall current version
+sudo bambu-update --force
+
+# Roll back to previous version
+sudo bambu-rollback
 ```
 
-**Region options:** `"us"` (default), `"cn"` (China accounts)
-
-#### How to get your Bambu User ID and Token
-
-1. Open [MakerWorld](https://makerworld.com) in your browser and log in
-2. Open your browser's **Developer Tools** (F12)
-3. Go to **Application → Cookies → https://makerworld.com**
-4. Find the cookie named **`token`** — copy its full value as `bambu_token`
-5. Go to the **Network** tab, reload the page, find a request to `makerworld.com`
-6. Click **my/preference** in the request list, look in the response JSON for `uid`
-   — copy this number as `bambu_user_id`
-
-Alternatively, visit this URL while logged into MakerWorld and find `uid` in the JSON:
-```
-https://makerworld.com/api/v1/design-user-service/my/preference
-```
-
-> **Note:** Cloud tokens expire periodically. If the dashboard shows a printer
-> offline and the logs show "Bad credentials", you need to refresh your token
-> using the steps above and update config.json.
+The updater pulls `bambu_server.py`, `templates/dashboard.html`, `templates/settings.html`,
+and `version.txt` from this GitHub repo. **config.json is never overwritten.**
 
 ---
 
-## Mixed Mode Example
+## Installation
 
-One printer on LAN, one via cloud — both on the same dashboard:
+### 1. Transfer files to the Surface RT
 
-```json
-{
-  "printers": [
-    {
-      "id": "printer1",
-      "name": "H2D",
-      "mode": "lan",
-      "ip": "192.168.1.100",
-      "serial": "ABC123",
-      "access_code": "12345678",
-      "enabled": true
-    },
-    {
-      "id": "printer2",
-      "name": "H2C",
-      "mode": "cloud",
-      "region": "us",
-      "serial": "DEF456",
-      "bambu_user_id": "987654321",
-      "bambu_token": "eyJhbGci...",
-      "enabled": true
-    }
-  ]
-}
+```bash
+scp -r bambuhelper-surface-v2/ rjones@<SURFACE_RT_IP>:/tmp/
 ```
+
+### 2. Run the installer
+
+```bash
+cd /tmp/bambuhelper-surface-v2
+sudo bash install.sh
+```
+
+### 3. Edit the config
+
+```bash
+sudo nano /etc/bambuhelper/config.json
+sudo systemctl restart bambuhelper
+```
+
+Or use the Settings page in the dashboard.
+
+---
+
+## File Locations
+
+| Path | Purpose |
+|---|---|
+| `/opt/bambuhelper/bambu_server.py` | Main server (updated by bambu-update) |
+| `/opt/bambuhelper/templates/` | Dashboard and settings HTML |
+| `/opt/bambuhelper/venv/` | Python virtual environment |
+| `/etc/bambuhelper/config.json` | Printer and display config (never overwritten) |
+| `/usr/local/bin/bambu-update` | Updater script |
+| `/usr/local/bin/bambu-rollback` | Rollback script |
+| `/etc/systemd/system/bambuhelper.service` | Server systemd service |
+| `/etc/systemd/system/bambuhelper-kiosk.service` | Chromium kiosk service |
 
 ---
 
 ## Useful Commands
 
 ```bash
-# View live logs (very useful for debugging connection issues)
+# Live logs
 journalctl -u bambuhelper -f
 
-# Restart after editing config.json
+# Restart server
 sudo systemctl restart bambuhelper
-
-# Check status
-systemctl status bambuhelper
-systemctl status bambuhelper-kiosk
 
 # Stop kiosk to access desktop
 sudo systemctl stop bambuhelper-kiosk
 
-# Temporarily disable a printer without editing JSON
-# Set "enabled": false in config.json then restart
+# Check printer state via API
+curl -s http://localhost:5000/api/state | python3 -m json.tool
+
+# Check display config
+curl -s http://localhost:5000/api/display | python3 -m json.tool
 ```
 
 ---
@@ -168,27 +221,40 @@ sudo systemctl stop bambuhelper-kiosk
 
 | Problem | Solution |
 |---|---|
-| LAN printer offline | Confirm Developer Mode is on, check IP and access code |
-| Cloud printer offline | Token may have expired — get a fresh token from MakerWorld |
-| "Bad credentials" in logs | Wrong access_code (LAN) or bambu_token (cloud) |
-| "Not authorised" in logs | Wrong bambu_user_id — check the `uid` field carefully |
-| Dashboard not loading | Check `journalctl -u bambuhelper -f` for Python errors |
-| No data after connecting | Try restarting the service — it sends a pushall request on connect |
+| Service won't start (KeyError: 'id') | config.json is missing `id` field — restore manually with correct JSON |
+| Cloud printer offline | Token expired — get fresh token from bambulab.com cookies |
+| Dashboard blank (no panels) | JavaScript error — check browser console or `journalctl -u bambuhelper -f` |
+| Colors not applying | Settings save may have dropped `id` field — check config.json |
+| Screen not turning off | Check timeout is not 0 and "Always on" is unchecked in settings |
+| bambu-update fails | Run `curl -v --max-time 30 https://raw.githubusercontent.com/rbjones21/BambuHelper-SurfaceRT/main/version.txt` to test connectivity |
 
 ---
 
-## Project Structure
+## Changelog
 
-```
-/opt/bambuhelper/
-├── bambu_server.py       MQTT bridge + Flask server (LAN + cloud)
-├── templates/
-│   └── dashboard.html    Touch dashboard UI
-└── venv/                 Python virtual environment
+### v1.1.0 — March 2026
+- Dynamic color themes including Bambu theme (light grey + green)
+- Per-gauge color pickers in settings
+- SVG status icons (printing / paused / finished / error)
+- Live printer action status (Changing filament, Auto bed leveling, Home toolhead, etc.)
+- Large ETA display with 12h/24h format toggle in settings
+- Single printer expands to full width with larger UI
+- Display timeout and always-on settings now functional (controls screen via xset)
+- Disabled printers hidden from dashboard and WebSocket broadcast
+- Fixed updater URL (was hardcoded with placeholder username)
+- Fixed duplicate Flask routes causing control buttons to fail
+- Fixed missing `request` and `Response` Flask imports
+- Fixed `id` field crash on startup — server now auto-assigns if missing
+- Chromium refreshes automatically after bambu-update (no reboot needed)
 
-/etc/bambuhelper/
-└── config.json           Printer config (edit this)
-```
+### v1.0.0 — March 2026
+- Initial release
+- Dual printer MQTT monitoring via Bambu Cloud
+- Arc gauges for temperature and fans
+- LED progress bar
+- Settings page with printer config and display controls
+- GitHub-based OTA updater
 
 ---
-*BambuHelper Surface RT v2 — March 2026*
+
+*BambuHelperRT — [github.com/rbjones21/BambuHelper-SurfaceRT](https://github.com/rbjones21/BambuHelper-SurfaceRT)*
