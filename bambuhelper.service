@@ -1,0 +1,17 @@
+[Unit]
+Description=BambuHelper Printer Monitor Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/bambuhelper
+ExecStart=/opt/bambuhelper/venv/bin/python bambu_server.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

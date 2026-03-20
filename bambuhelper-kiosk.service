@@ -1,0 +1,32 @@
+[Unit]
+Description=BambuHelper Kiosk Browser
+After=bambuhelper.service graphical-session.target
+Wants=bambuhelper.service
+
+[Service]
+Type=simple
+User=root
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/root/.Xauthority
+# Wait for the Flask server to be ready
+ExecStartPre=/bin/sleep 5
+ExecStart=/usr/bin/chromium \
+  --kiosk \
+  --noerrdialogs \
+  --disable-infobars \
+  --no-first-run \
+  --disable-translate \
+  --disable-features=TranslateUI \
+  --disable-session-crashed-bubble \
+  --disable-restore-session-state \
+  --touch-events=enabled \
+  --enable-touch-drag-drop \
+  --disable-pinch \
+  --overscroll-history-navigation=0 \
+  --disable-contextmenu \
+  http://localhost:5000
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=graphical-session.target

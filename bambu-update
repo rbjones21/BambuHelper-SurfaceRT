@@ -1,0 +1,119 @@
+#!/bin/bash
+# bambu-update — BambuHelper Surface RT updater
+# Pulls latest code from GitHub and restarts services
+# Usage: bambu-update [--check] [--force]
+
+set -e
+
+REPO="https://github.com/YOUR_GITHUB_USERNAME/BambuHelper-SurfaceRT"
+RAW="https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/BambuHelper-SurfaceRT/main"
+INSTALL_DIR="/opt/bambuhelper"
+VERSION_FILE="/opt/bambuhelper/version.txt"
+CONFIG_FILE="/etc/bambuhelper/config.json"
+TMP="/tmp/bambu-update-$$"
+
+# ── Colours ──
+G='\033[0;32m'; Y='\033[1;33m'; R='\033[0;31m'; B='\033[0;34m'; N='\033[0m'
+
+info()    { echo -e "${B}[BambuHelper]${N} $1"; }
+success() { echo -e "${G}[BambuHelper]${N} $1"; }
+warn()    { echo -e "${Y}[BambuHelper]${N} $1"; }
+error()   { echo -e "${R}[BambuHelper]${N} $1"; exit 1; }
+
+# ── Check mode — just show current vs remote version ──
+if [[ "$1" == "--check" ]]; then
+  info "Checking for updates..."
+  LOCAL=$(cat "$VERSION_FILE" 2>/dev/null || echo "unknown")
+  REMOTE=$(curl -sf "$RAW/version.txt" 2>/dev/null || echo "unavailable")
+  echo "  Local version:  $LOCAL"
+  echo "  Remote version: $REMOTE"
+  if [[ "$LOCAL" == "$REMOTE" ]]; then
+    success "Already up to date."
+  else
+    warn "Update available: $REMOTE"
+    echo "  Run 'bambu-update' to apply."
+  fi
+  exit 0
+fi
+
+# ── Require root ──
+if [[ $EUID -ne 0 ]]; then
+  error "Run as root: sudo bambu-update"
+fi
+
+# ── Check network ──
+if ! curl -sf --max-time 5 "https://github.com" > /dev/null 2>&1; then
+  error "No internet connection. Check WiFi and try again."
+fi
+
+# ── Show versions ──
+LOCAL=$(cat "$VERSION_FILE" 2>/dev/null || echo "unknown")
+REMOTE=$(curl -sf "$RAW/version.txt" 2>/dev/null || echo "unknown")
+
+echo ""
+echo -e "${B}╔══════════════════════════════════════╗${N}"
+echo -e "${B}║   BambuHelper Surface RT — Updater   ║${N}"
+echo -e "${B}╚══════════════════════════════════════╝${N}"
+echo ""
+echo "  Current version : $LOCAL"
+echo "  Latest version  : $REMOTE"
+echo ""
+
+if [[ "$LOCAL" == "$REMOTE" && "$1" != "--force" ]]; then
+  success "Already up to date. Use 'sudo bambu-update --force' to reinstall anyway."
+  exit 0
+fi
+
+# ── Confirm ──
+if [[ "$1" != "--force" ]]; then
+  read -p "  Apply update $REMOTE? [y/N] " confirm
+  [[ "$confirm" =~ ^[Yy]$ ]] || { info "Update cancelled."; exit 0; }
+fi
+
+echo ""
+info "Downloading update..."
+mkdir -p "$TMP/templates"
+
+# Files to update — config.json is deliberately excluded to preserve user settings
+FILES=(
+  "bambu_server.py"
+  "templates/dashboard.html"
+  "templates/settings.html"
+  "version.txt"
+)
+
+for f in "${FILES[@]}"; do
+  info "  Fetching $f"
+  curl -sf "$RAW/$f" -o "$TMP/$f" || error "Failed to download $f — check repo URL"
+done
+
+# ── Backup current install ──
+info "Backing up current version..."
+BACKUP="/opt/bambuhelper-backup-$(date +%Y%m%d-%H%M%S)"
+cp -r "$INSTALL_DIR" "$BACKUP"
+info "  Backup saved to $BACKUP"
+
+# ── Apply update ──
+info "Applying update..."
+for f in "${FILES[@]}"; do
+  cp "$TMP/$f" "$INSTALL_DIR/$f"
+done
+
+# ── Restart services ──
+info "Restarting services..."
+systemctl restart bambuhelper
+sleep 3
+systemctl restart bambuhelper-kiosk 2>/dev/null || true
+sleep 5
+# Refresh Chromium kiosk page
+DISPLAY=:0 XAUTHORITY=/home/rjones/.Xauthority xdotool key --clearmodifiers F5 2>/dev/null || true
+
+# ── Cleanup ──
+rm -rf "$TMP"
+
+echo ""
+success "Update complete — now running version $REMOTE"
+echo ""
+echo "  View logs : journalctl -u bambuhelper -f"
+echo "  Rollback  : sudo bambu-rollback"
+echo ""

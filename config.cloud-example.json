@@ -1,0 +1,29 @@
+{
+  "_comment": "This is an EXAMPLE showing cloud mode. Copy relevant parts into config.json.",
+
+  "printers": [
+    {
+      "id": "printer1",
+      "name": "H2D",
+
+      "_comment_mode": "Use 'lan' for local network (needs Developer Mode on printer)",
+      "mode": "lan",
+      "ip": "192.168.1.100",
+      "serial": "YOUR_H2D_SERIAL",
+      "access_code": "YOUR_8_CHAR_LAN_CODE",
+      "enabled": true
+    },
+    {
+      "id": "printer2",
+      "name": "H2C",
+
+      "_comment_mode": "Use 'cloud' to connect via Bambu cloud (no Developer Mode needed)",
+      "mode": "cloud",
+      "region": "us",
+      "serial": "YOUR_H2C_SERIAL",
+      "bambu_user_id": "YOUR_NUMERIC_USER_ID",
+      "bambu_token": "YOUR_CLOUD_ACCESS_TOKEN",
+      "enabled": true
+    }
+  ]
+}

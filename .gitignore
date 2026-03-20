@@ -1,0 +1,7 @@
+# Never commit these — they contain credentials
+config.json
+*.pyc
+__pycache__/
+.env
+venv/
+*.zip

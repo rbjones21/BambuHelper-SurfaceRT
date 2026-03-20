@@ -1,0 +1,29 @@
+#!/bin/bash
+# bambu-rollback — restore the most recent backup
+
+G='\033[0;32m'; Y='\033[1;33m'; R='\033[0;31m'; B='\033[0;34m'; N='\033[0m'
+
+if [[ $EUID -ne 0 ]]; then
+  echo -e "${R}[BambuHelper]${N} Run as root: sudo bambu-rollback"
+  exit 1
+fi
+
+# Find most recent backup
+BACKUP=$(ls -dt /opt/bambuhelper-backup-* 2>/dev/null | head -1)
+
+if [[ -z "$BACKUP" ]]; then
+  echo -e "${R}[BambuHelper]${N} No backup found."
+  exit 1
+fi
+
+echo ""
+echo -e "${Y}[BambuHelper]${N} Rolling back to: $BACKUP"
+read -p "  Confirm? [y/N] " confirm
+[[ "$confirm" =~ ^[Yy]$ ]] || { echo "Cancelled."; exit 0; }
+
+cp -r "$BACKUP/." /opt/bambuhelper/
+systemctl restart bambuhelper
+systemctl restart bambuhelper-kiosk 2>/dev/null || true
+
+echo -e "${G}[BambuHelper]${N} Rollback complete."
+echo ""
