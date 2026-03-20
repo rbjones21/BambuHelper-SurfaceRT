@@ -159,20 +159,12 @@
       <div class="field">
         <label>Brightness</label>
         <div class="slider-row">
-          <input type="range" id="d-bright" min="10" max="255" value="200" oninput="document.getElementById('d-bval').textContent=this.value">
+          <input type="range" id="d-bright" min="10" max="254" value="128" 
+            oninput="document.getElementById('d-bval').textContent=this.value; applyBrightness(this.value)">
           <span class="slider-val" id="d-bval">200</span>
         </div>
       </div>
-      <div class="field">
-        <label>Screen Rotation</label>
-        <div class="sel-wrap"><select id="d-rot">
-          <option value="normal">0° (default)</option>
-          <option value="right">90°</option>
-          <option value="inverted">180°</option>
-          <option value="left">270°</option>
-        </select></div>
-      </div>
-      <div class="field">
+         <div class="field">
         <label>Display off after print complete (minutes, 0 = never)</label>
         <input type="number" id="d-timeout" value="3" min="0" max="60">
       </div>
@@ -375,9 +367,13 @@ async function saveDisplay() {
   } catch(e) { showToast('Could not reach server','error'); }
 }
 
-async function applyRotation(rotation) {
+async function applyBrightness(val) {
   try {
-    await fetch('/api/display/rotate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({rotation})});
+    await fetch('/api/display/brightness', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({brightness: parseInt(val)})
+    });
   } catch(e) {}
 }
 

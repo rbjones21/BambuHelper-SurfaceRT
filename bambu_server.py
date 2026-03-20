@@ -283,18 +283,15 @@ def api_network():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
-@app.route('/api/display/rotate', methods=['POST'])
-def api_display_rotate():
+@app.route('/api/display/brightness', methods=['POST'])
+def api_display_brightness():
     try:
-        data     = request.get_json()
-        rotation = data.get('rotation', 'normal')
-        if rotation not in ('normal', 'left', 'right', 'inverted'):
-            return jsonify({"ok": False, "error": "Invalid rotation value"})
-        subprocess.Popen(
-            ['xrandr', '--output', 'DSI-1', '--rotate', rotation],
-            env={'DISPLAY': ':0', 'XAUTHORITY': '/home/rjones/.Xauthority'}
-        )
-        return jsonify({"ok": True})
+        data       = request.get_json()
+        brightness = int(data.get('brightness', 128))
+        brightness = max(10, min(254, brightness))  # clamp 10-254
+        with open('/sys/class/backlight/backlight/brightness', 'w') as f:
+            f.write(str(brightness))
+        return jsonify({"ok": True, "brightness": brightness})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
