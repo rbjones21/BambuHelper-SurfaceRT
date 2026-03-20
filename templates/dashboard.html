@@ -18,7 +18,7 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { width: 100vw; height: 100vh; overflow: hidden; background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; }
 
-  #root { display: grid; grid-template-rows: 52px 1fr; height: 100vh; }
+  #root { display: grid; grid-template-rows: 52px 1fr; height: 100vh; position: relative; }
 
   /* Header */
   header {
@@ -136,6 +136,17 @@
   /* Error strip */
   .err-strip { padding: 5px 14px; background: rgba(255,34,68,0.1); border-top: 1px solid rgba(255,34,68,0.2); font-size: 13px; color: #ff4455; font-family: 'Share Tech Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
 
+  /* Idle clock overlay */
+  #idle-clock {
+    display: none; position: absolute; inset: 52px 0 0 0;
+    flex-direction: column; align-items: center; justify-content: center;
+    background: var(--bg); gap: 12px; z-index: 10;
+  }
+  #idle-clock.active { display: flex; }
+  .idle-time   { font-family: 'Share Tech Mono', monospace; font-size: clamp(80px, 15vw, 140px); font-weight: 700; color: var(--text); letter-spacing: 4px; line-height: 1; }
+  .idle-date   { font-family: 'Rajdhani', sans-serif; font-size: clamp(24px, 4vw, 42px); font-weight: 500; color: var(--muted); letter-spacing: 4px; text-transform: uppercase; }
+  .idle-status { font-size: 14px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); opacity: 0.5; margin-top: 8px; }
+
   /* Offline overlay */
   .offline { position: absolute; inset: 0; background: rgba(10,12,15,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; border-radius: 8px; z-index: 9; }
   .offline .on { font-size: 20px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); }
@@ -160,6 +171,11 @@
     </div>
   </header>
   <div id="printers"></div>
+  <div id="idle-clock">
+    <div class="idle-time" id="idle-time-display">--:--</div>
+    <div class="idle-date" id="idle-date-display">---</div>
+    <div class="idle-status">No active prints</div>
+  </div>
 </div>
 <script>
 // ── Display config — loaded from server, applied as CSS vars ──
@@ -467,13 +483,35 @@ setInterval(updateNetStatus, 30000);
 updateNetStatus();
 
 function render(states){
-  const el = document.getElementById('printers');
+  const el       = document.getElementById('printers');
+  const idleClock = document.getElementById('idle-clock');
+  const anyActive = states.some(s => s.connected && (s.gcode_state === 'RUNNING' || s.gcode_state === 'PAUSE'));
+
+  if (anyActive) {
+    idleClock.classList.remove('active');
+    el.style.display = '';
+  } else {
+    idleClock.classList.add('active');
+    el.style.display = 'none';
+  }
+
   const single = states.length === 1;
   el.style.gridTemplateColumns = single ? '1fr' : '1fr 1fr';
   el.classList.toggle('single', single);
   el.innerHTML = states.map((s,i)=>panel(s,i)).join('');
   states.forEach(s => { if(s.connected && s.print_name) loadThumb(s.id); });
 }
+
+// Idle clock ticker
+function tickIdleClock() {
+  const now  = new Date();
+  const time = now.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12: USE_12H});
+  const date = now.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'});
+  document.getElementById('idle-time-display').textContent = time;
+  document.getElementById('idle-date-display').textContent = date;
+}
+setInterval(tickIdleClock, 1000);
+tickIdleClock();
 
 const socket = io();
 socket.on('state_update', render);
