@@ -124,6 +124,7 @@ def default_state(printer_cfg):
     }
 
 printer_states = {cfg["id"]: default_state(cfg) for cfg in CONFIG["printers"]}
+active_clients = {}  # printer_id -> active mqtt client
 state_lock = threading.Lock()
 
 # ---------------------------------------------------------------------------
@@ -183,11 +184,21 @@ def api_config_save():
         # Restart MQTT workers in background
         def restart_workers():
             time.sleep(1)
+            # Disconnect existing clients gracefully
+            for pid, client in list(active_clients.items()):
+                try:
+                    client.loop_stop()
+                    client.disconnect()
+                except Exception:
+                    pass
+            active_clients.clear()
+            time.sleep(2)
             for cfg in CONFIG["printers"]:
-                t = threading.Thread(target=mqtt_worker, args=(cfg,), daemon=True)
-                t.start()
-
-        threading.Thread(target=restart_workers, daemon=True).start()
+                if cfg.get("enabled", True):
+                    t = threading.Thread(target=mqtt_worker, args=(cfg,), daemon=True)
+                    t.start()
+        
+        
 
         log.info("Config saved and connections restarting")
         return jsonify({"ok": True})
@@ -534,7 +545,7 @@ def make_mqtt_client(printer_cfg):
     client.on_connect    = on_connect
     client.on_disconnect = on_disconnect
     client.on_message    = on_message
-
+    active_clients[printer_id] = client
     return client, host, port
 
 # ---------------------------------------------------------------------------

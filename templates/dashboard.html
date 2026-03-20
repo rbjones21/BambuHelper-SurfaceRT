@@ -439,24 +439,32 @@ function panel(s, idx){
 
 // Thumbnail cache to avoid re-fetching on every state update
 const thumbCache = {};
+const thumbFailed = {};
 
-async function loadThumb(printerId) {
-  // Only fetch if not already cached for this print
+async function loadThumb(printerId, printName) {
   const el = document.getElementById(`thumb-${printerId}`);
   if (!el) return;
-  if (thumbCache[printerId]) {
-    el.innerHTML = `<img src="${thumbCache[printerId]}" alt="preview">`;
+  // Use cached success
+  if (thumbCache[printerId] === printName) {
+    el.innerHTML = `<img src="${thumbCache[printerId + '_url']}" alt="preview">`;
     return;
   }
+  // Don't retry failed fetches for the same print
+  if (thumbFailed[printerId] === printName) return;
   try {
     const res = await fetch(`/api/thumbnail/${printerId}`);
     if (res.ok && res.headers.get('content-type')?.startsWith('image')) {
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
-      thumbCache[printerId] = url;
+      thumbCache[printerId]         = printName;
+      thumbCache[printerId + '_url'] = url;
       if (el) el.innerHTML = `<img src="${url}" alt="preview">`;
+    } else {
+      thumbFailed[printerId] = printName;
     }
-  } catch(e) {}
+  } catch(e) {
+    thumbFailed[printerId] = printName;
+  }
 }
 
 
@@ -500,7 +508,7 @@ function render(states){
   el.style.gridTemplateColumns = single ? '1fr' : '1fr 1fr';
   el.classList.toggle('single', single);
   el.innerHTML = states.map((s,i)=>panel(s,i)).join('');
-  states.forEach(s => { if(s.connected && s.print_name) loadThumb(s.id); });
+  states.forEach(s => { if(s.connected && s.printing && s.print_name) loadThumb(s.id, s.print_name); });
 }
 
 // Idle clock ticker
