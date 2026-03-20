@@ -588,6 +588,63 @@ def periodic_broadcast():
         time.sleep(5)
         broadcast_state()
 
+
+# ---------------------------------------------------------------------------
+# Display timeout monitor
+# ---------------------------------------------------------------------------
+def display_monitor():
+    """Watch print states and control screen on/off based on display settings."""
+    import subprocess
+    DISPLAY_ENV = {'DISPLAY': ':0', 'XAUTHORITY': '/home/rjones/.Xauthority'}
+
+    def screen_on():
+        subprocess.run(['xset', '-display', ':0', 'dpms', 'force', 'on'],
+                       env=DISPLAY_ENV, capture_output=True)
+
+    def screen_off():
+        subprocess.run(['xset', '-display', ':0', 'dpms', 'force', 'off'],
+                       env=DISPLAY_ENV, capture_output=True)
+
+    # Make sure screen starts on and DPMS is enabled
+    subprocess.run(['xset', '-display', ':0', '+dpms'], env=DISPLAY_ENV, capture_output=True)
+    screen_on()
+
+    all_done_since = None
+
+    while True:
+        time.sleep(30)
+        try:
+            display = CONFIG.get('display', {})
+            always_on = display.get('always_on', False)
+            timeout_min = int(display.get('timeout', 3))
+            show_clock = display.get('show_clock', True)
+
+            # If always on or timeout=0 or show_clock — keep screen on
+            if always_on or timeout_min == 0 or show_clock:
+                screen_on()
+                all_done_since = None
+                continue
+
+            # Check if any enabled printer is actively printing
+            with state_lock:
+                active = any(
+                    s.get('printing', False)
+                    for s in printer_states.values()
+                    if s.get('enabled', True)
+                )
+
+            if active:
+                screen_on()
+                all_done_since = None
+            else:
+                if all_done_since is None:
+                    all_done_since = time.time()
+                elif time.time() - all_done_since >= timeout_min * 60:
+                    screen_off()
+
+        except Exception as e:
+            log.warning(f"Display monitor error: {e}")
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -600,6 +657,7 @@ if __name__ == '__main__':
         t.start()
 
     threading.Thread(target=periodic_broadcast, daemon=True).start()
+    threading.Thread(target=display_monitor, daemon=True).start()
 
     log.info("Web server starting on port 5000")
     socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)
