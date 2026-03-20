@@ -144,7 +144,7 @@ def settings():
 @app.route('/api/state')
 def api_state():
     with state_lock:
-        return jsonify(list(printer_states.values()))
+        return jsonify([s for s in printer_states.values() if s.get('enabled', True)])
 
 @app.route('/api/config')
 def api_config():
