@@ -134,6 +134,32 @@ Requires Developer Mode: Settings → General → Developer Mode on the printer 
 
 ---
 
+## Printer Compatibility
+
+All Bambu Lab printers use the same MQTT protocol and field names, so BambuHelperRT should work with any model. The fields we parse (`nozzle_temper`, `bed_temper`, `gcode_state`, `mc_percent`, `stg_cur`, `spd_lvl`, etc.) are present across all series.
+
+| Series | Cloud Mode | LAN Mode | Notes |
+|---|---|---|---|
+| H2D, H2C, H2S | ✅ Tested | ✅ With Dev Mode | Primary test platform |
+| X1C, X1E | ✅ Should work | ✅ With Dev Mode | Same MQTT fields |
+| P1S, P1P | ✅ Should work | ✅ With Dev Mode | P1 sends delta updates only — pushall request handles this |
+| A1, A1 Mini | ✅ Should work | ✅ With Dev Mode | Same protocol |
+| P2S | ✅ Should work | ✅ With Dev Mode | Newer series, same fields |
+
+**Note on P1 series in LAN mode:** The P1P/P1S only send changed fields in each MQTT message rather than the full state. BambuHelperRT handles this correctly since it merges incoming fields into the existing state rather than replacing it entirely.
+
+If you test with a printer not listed as "Tested" above and it works, feel free to open an issue on GitHub to confirm so the table can be updated.
+
+---
+
+## Security Notes
+
+The web server binds to `127.0.0.1` (localhost only) — it is only accessible from Chromium running on the Surface RT itself, not from other devices on your network. This means your Bambu credentials stored in config.json are not exposed to the network.
+
+If you need to access the dashboard from another device on your network (e.g. a phone or PC), you can change the bind address in `bambu_server.py` from `127.0.0.1` to `0.0.0.0`, but be aware this will expose all API endpoints including `/api/config` which contains your printer tokens. Only do this on a trusted private network.
+
+---
+
 ## Updater
 
 ```bash
@@ -246,6 +272,8 @@ curl -s http://localhost:5000/api/display | python3 -m json.tool
 - Fixed missing `request` and `Response` Flask imports
 - Fixed `id` field crash on startup — server now auto-assigns if missing
 - Chromium refreshes automatically after bambu-update (no reboot needed)
+- **Security:** Server now binds to localhost only (127.0.0.1) — not exposed to network
+- **Security:** Display rotation parameter validated against whitelist
 
 ### v1.0.0 — March 2026
 - Initial release

@@ -283,6 +283,8 @@ def api_display_rotate():
     try:
         data     = request.get_json()
         rotation = data.get('rotation', 'normal')
+        if rotation not in ('normal', 'left', 'right', 'inverted'):
+            return jsonify({"ok": False, "error": "Invalid rotation value"})
         import subprocess
         subprocess.Popen(
             ['xrandr', '--output', 'DSI-1', '--rotate', rotation],
@@ -659,5 +661,5 @@ if __name__ == '__main__':
     threading.Thread(target=periodic_broadcast, daemon=True).start()
     threading.Thread(target=display_monitor, daemon=True).start()
 
-    log.info("Web server starting on port 5000")
-    socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)
+    log.info("Web server starting on port 5000 (localhost only)")
+    socketio.run(app, host='127.0.0.1', port=5000, debug=False, allow_unsafe_werkzeug=True)
