@@ -316,7 +316,7 @@ function panel(s, idx){
         <span>Layer <strong>${s.layer_current||0}</strong>/<strong>${s.layer_total||0}</strong></span>
         <span>Remaining <strong>${fmt(s.time_remaining)}</strong></span>
       </div>
-      ${(s.stage && s.stage !== 'Printing') ? `<div class="print-stage">${s.stage}</div>` : ''}
+      ${s.stage ? `<div class="print-stage">${s.stage}</div>` : ''}
     </div>
     ${etaBlock}
   </div>`;
