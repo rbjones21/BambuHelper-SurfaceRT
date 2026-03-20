@@ -263,19 +263,17 @@ def api_network():
     """Return Surface RT WiFi signal strength and connection quality."""
     try:
         import subprocess, re
-        result = subprocess.run(['iw', 'dev', 'mlan0', 'link'],
-                                capture_output=True, text=True, timeout=3)
+        result = subprocess.run(['iwconfig', 'mlan0'], capture_output=True, text=True, timeout=3)
         output = result.stdout
         signal, ssid = None, None
-        m = re.search(r'signal:\s*(-\d+)', output)
-        if m: signal = int(m.group(1))
-        m = re.search(r'SSID:\s*(.+)', output)
-        if m: ssid = m.group(1).strip()
-
-        if signal is None:
-            return jsonify({"ok": True, "signal": None, "ssid": ssid, "quality": "unknown"})
-
-        quality = 'good' if signal > -60 else 'fair' if signal > -75 else 'poor'
+        for line in output.splitlines():
+            if 'Signal level' in line:
+                m = re.search(r'Signal level=(-\d+)', line)
+                if m: signal = int(m.group(1))
+            if 'ESSID' in line:
+                m = re.search(r'ESSID:"([^"]+)"', line)
+                if m: ssid = m.group(1)
+        quality = 'good' if signal and signal > -60 else 'fair' if signal and signal > -75 else 'poor'
         return jsonify({"ok": True, "signal": signal, "ssid": ssid, "quality": quality})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
@@ -347,36 +345,6 @@ def api_printer_control():
 
     except Exception as e:
         log.error(f"Control error: {e}")
-        return jsonify({"ok": False, "error": str(e)})
-
-@app.route('/api/system/reboot', methods=['POST'])
-def api_system_reboot():
-    try:
-        import subprocess
-        subprocess.Popen(['sudo', 'reboot'])
-        return jsonify({"ok": True})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)})
-
-@app.route('/api/system/shutdown', methods=['POST'])
-def api_system_shutdown():
-    try:
-        import subprocess
-        subprocess.Popen(['sudo', 'shutdown', 'now'])
-        return jsonify({"ok": True})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)})
-
-@app.route('/api/system/terminal', methods=['POST'])
-def api_system_terminal():
-    try:
-        import subprocess
-        subprocess.Popen(
-            ['xterm', '-fs', '14', '-bg', 'black', '-fg', 'green'],
-            env={'DISPLAY': ':0', 'XAUTHORITY': '/home/rjones/.Xauthority'}
-        )
-        return jsonify({"ok": True})
-    except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
 # ---------------------------------------------------------------------------
