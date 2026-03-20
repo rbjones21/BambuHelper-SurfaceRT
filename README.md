@@ -286,3 +286,13 @@ curl -s http://localhost:5000/api/display | python3 -m json.tool
 ---
 
 *BambuHelperRT — [github.com/rbjones21/BambuHelper-SurfaceRT](https://github.com/rbjones21/BambuHelper-SurfaceRT)*
+
+---
+
+## v1.2.0 — Planned
+
+- **Idle clock display** — when no printer is actively printing, replace the printer panel(s) with a full-screen clock and date, matching the original BambuHelper ESP32 behavior
+- **Chromium tab accumulation fix** — kiosk autostart opens a new tab on each boot rather than reusing the existing session; fix to ensure only one tab/window is ever open
+- **Network status false offline** — the WiFi signal indicator in the header frequently shows offline incorrectly; fix the `iwconfig mlan0` parsing or polling logic
+- **Settings system buttons** — add Reboot, Shutdown, and Open Terminal buttons to the settings page (under a new System section)
+- **Settings theme consistency** — the settings page does not reflect the currently active dashboard theme; both pages should share the same color scheme when a theme is applied
