@@ -1,4 +1,4 @@
-# BambuHelperRT — v1.1.0
+# BambuHelperRT — v1.2.0
 
 A Bambu Lab printer monitor dashboard running on a **Microsoft Surface RT** with Debian 12.
 Connects to one or two printers simultaneously via Bambu Cloud MQTT and displays live status
@@ -18,7 +18,7 @@ For info on running Debian 12 on a Surface RT:
 - **Device**: Microsoft Surface RT (Tegra 3, armhf) running Debian 12
 - **Display**: Surface RT built-in 10.6" 1366×768 touchscreen
 - **Network**: WiFi (mlan0), power management disabled for stability
-- **Kiosk**: Chromium launched fullscreen via LXDE autostart
+- **Kiosk**: Chromium launched fullscreen via systemd service
 
 ---
 
@@ -32,6 +32,7 @@ Bambu Cloud MQTT → bambu_server.py (Flask + SocketIO :5000) → WebSocket → 
 - `templates/dashboard.html` — Live dashboard UI
 - `templates/settings.html` — Settings page
 - `/etc/bambuhelper/config.json` — Printer config (never overwritten by updates)
+- `/etc/bambuhelper/config.known-good.json` — Auto-backup of last working config
 
 ---
 
@@ -44,19 +45,21 @@ Bambu Cloud MQTT → bambu_server.py (Flask + SocketIO :5000) → WebSocket → 
 - **Print name** — filename of the active print job
 - **Layer count** — current layer / total layers
 - **Remaining time** — time left in the print
-- **Printer action status** — live stage from the printer: Printing, Changing filament, Auto bed leveling, Heating nozzle, Home toolhead, etc.
-- **ETA** — estimated finish time (12h or 24h format, configurable)
+- **Printer action status** — live stage: Printing, Changing filament, Auto bed leveling, Heating nozzle, Home toolhead, etc.
+- **ETA** — estimated finish time (12h or 24h format)
 - **LED progress bar** — H2-style 40-segment bar showing completion %
 - **6 arc gauges** — Nozzle temp, Bed temp, Chamber temp, Part Fan %, Aux Fan %, Exhaust Fan %
 
 ### Layout
 - **Two printers**: side-by-side split layout
-- **One printer** (or one disabled): single panel expands full width with larger fonts, bigger gauges laid out in a single row
+- **One printer** (or one disabled): single panel expands full width with larger fonts and gauges in a single row
+- **No active prints**: full-screen idle clock with date display
 
 ### Header
 - BambuHelperRT logo
-- WiFi signal strength (mlan0)
+- WiFi signal strength
 - Clock (12h or 24h)
+- Refresh button
 - Settings button
 
 ---
@@ -72,17 +75,21 @@ Bambu Cloud MQTT → bambu_server.py (Flask + SocketIO :5000) → WebSocket → 
 - Enable/disable toggle — disabled printers are hidden from the dashboard
 
 ### Display
-- **Brightness** slider
-- **Rotation** — Normal / Left / Right / Inverted
+- **Brightness** slider — controls Surface RT backlight directly
 - **Display off after print** — minutes after all prints finish before screen turns off (0 = never)
 - **Always on** — override timeout, keep screen on permanently
-- **Show clock after print** — keep screen on showing clock after print completes
+- **Show clock after print** — show idle clock while waiting for timeout (does not affect when screen turns off)
 - **Time format** — 12 hour or 24 hour
 
 ### Gauge Colors
 - **Theme presets**: Default (dark cyan), Bambu (light grey + green), Mono Green, Neon, Warm, Ocean
-- **Per-gauge color pickers** for arc color, label color, and value color
-- Changes apply to the dashboard immediately on save
+- **Per-gauge color pickers** for arc, label, and value colors
+- Theme applies to both dashboard and settings page
+
+### System
+- **Reboot** — reboots the Surface RT (with confirmation)
+- **Shutdown** — shuts down the Surface RT (with confirmation)
+- **Terminal** — opens an xterm window on the display
 
 ### About
 - Project description and links
@@ -92,12 +99,12 @@ Bambu Cloud MQTT → bambu_server.py (Flask + SocketIO :5000) → WebSocket → 
 ## Connection Modes
 
 ### Cloud Mode (H2D, H2C, H2S, P2S)
-Connects via Bambu Lab's cloud MQTT broker. Does not require Developer Mode on the printer.
+Connects via Bambu Lab's cloud MQTT broker. Does not require Developer Mode.
 
 ```json
 {
   "id": "printer1",
-  "name": "FDS H2D",
+  "name": "My Printer",
   "mode": "cloud",
   "region": "us",
   "serial": "YOUR_SERIAL",
@@ -136,27 +143,15 @@ Requires Developer Mode: Settings → General → Developer Mode on the printer 
 
 ## Printer Compatibility
 
-All Bambu Lab printers use the same MQTT protocol and field names, so BambuHelperRT should work with any model. The fields we parse (`nozzle_temper`, `bed_temper`, `gcode_state`, `mc_percent`, `stg_cur`, `spd_lvl`, etc.) are present across all series.
+All Bambu Lab printers use the same MQTT protocol and field names.
 
 | Series | Cloud Mode | LAN Mode | Notes |
 |---|---|---|---|
 | H2D, H2C, H2S | ✅ Tested | ✅ With Dev Mode | Primary test platform |
 | X1C, X1E | ✅ Should work | ✅ With Dev Mode | Same MQTT fields |
-| P1S, P1P | ✅ Should work | ✅ With Dev Mode | P1 sends delta updates only — pushall request handles this |
+| P1S, P1P | ✅ Should work | ✅ With Dev Mode | P1 sends delta updates only |
 | A1, A1 Mini | ✅ Should work | ✅ With Dev Mode | Same protocol |
 | P2S | ✅ Should work | ✅ With Dev Mode | Newer series, same fields |
-
-**Note on P1 series in LAN mode:** The P1P/P1S only send changed fields in each MQTT message rather than the full state. BambuHelperRT handles this correctly since it merges incoming fields into the existing state rather than replacing it entirely.
-
-If you test with a printer not listed as "Tested" above and it works, feel free to open an issue on GitHub to confirm so the table can be updated.
-
----
-
-## Security Notes
-
-The web server binds to `127.0.0.1` (localhost only) — it is only accessible from Chromium running on the Surface RT itself, not from other devices on your network. This means your Bambu credentials stored in config.json are not exposed to the network.
-
-If you need to access the dashboard from another device on your network (e.g. a phone or PC), you can change the bind address in `bambu_server.py` from `127.0.0.1` to `0.0.0.0`, but be aware this will expose all API endpoints including `/api/config` which contains your printer tokens. Only do this on a trusted private network.
 
 ---
 
@@ -186,7 +181,7 @@ and `version.txt` from this GitHub repo. **config.json is never overwritten.**
 ### 1. Transfer files to the Surface RT
 
 ```bash
-scp -r bambuhelper-surface-v2/ rjones@<SURFACE_RT_IP>:/tmp/
+scp -r bambuhelper-surface-v2/ user@<SURFACE_RT_IP>:/tmp/
 ```
 
 ### 2. Run the installer
@@ -215,10 +210,13 @@ Or use the Settings page in the dashboard.
 | `/opt/bambuhelper/templates/` | Dashboard and settings HTML |
 | `/opt/bambuhelper/venv/` | Python virtual environment |
 | `/etc/bambuhelper/config.json` | Printer and display config (never overwritten) |
+| `/etc/bambuhelper/config.known-good.json` | Auto-backup of last working config |
 | `/usr/local/bin/bambu-update` | Updater script |
 | `/usr/local/bin/bambu-rollback` | Rollback script |
 | `/etc/systemd/system/bambuhelper.service` | Server systemd service |
 | `/etc/systemd/system/bambuhelper-kiosk.service` | Chromium kiosk service |
+| `/etc/udev/rules.d/99-backlight.rules` | Backlight write permissions |
+| `/etc/sudoers.d/bambuhelper` | Passwordless reboot/shutdown |
 
 ---
 
@@ -239,7 +237,20 @@ curl -s http://localhost:5000/api/state | python3 -m json.tool
 
 # Check display config
 curl -s http://localhost:5000/api/display | python3 -m json.tool
+
+# Set brightness manually (0-254)
+echo 128 | sudo tee /sys/class/backlight/backlight/brightness
 ```
+
+---
+
+## Security Notes
+
+The web server binds to `127.0.0.1` (localhost only) — accessible only from Chromium
+on the Surface RT itself, not from other devices on your network.
+
+If you need remote access, change `host='127.0.0.1'` to `host='0.0.0.0'` in
+`bambu_server.py`, but be aware this exposes `/api/config` which contains your printer tokens.
 
 ---
 
@@ -247,16 +258,31 @@ curl -s http://localhost:5000/api/display | python3 -m json.tool
 
 | Problem | Solution |
 |---|---|
-| Service won't start (KeyError: 'id') | config.json is missing `id` field — restore manually with correct JSON |
+| Service won't start (KeyError: 'id') | Config corrupted — server auto-restores from known-good backup on next restart |
 | Cloud printer offline | Token expired — get fresh token from bambulab.com cookies |
-| Dashboard blank (no panels) | JavaScript error — check browser console or `journalctl -u bambuhelper -f` |
-| Colors not applying | Settings save may have dropped `id` field — check config.json |
-| Screen not turning off | Check timeout is not 0 and "Always on" is unchecked in settings |
-| bambu-update fails | Run `curl -v --max-time 30 https://raw.githubusercontent.com/rbjones21/BambuHelper-SurfaceRT/main/version.txt` to test connectivity |
+| Dashboard blank | JavaScript error — restart service and hard-refresh Chromium |
+| Colors not applying | Open Settings, select theme and click Apply |
+| Screen not turning off | Check timeout > 0 and "Always on" is unchecked |
+| Brightness slider has no effect | Check `/sys/class/backlight/backlight/brightness` is writable |
+| bambu-update fails | Run `curl -v --max-time 30 https://raw.githubusercontent.com/rbjones21/BambuHelper-SurfaceRT/main/version.txt` |
 
 ---
 
 ## Changelog
+
+### v1.2.0 — March 2026
+- **Idle clock** — full-screen clock and date when no prints are active, auto-returns to printer panels when printing starts
+- **Single Chromium instance** — fixed duplicate tab/window on boot by switching from LXDE autostart to systemd service
+- **Network status fix** — switched from `iwconfig` (unsupported) to `iw dev mlan0 link` for reliable signal strength
+- **System buttons** — Reboot, Shutdown, and Terminal buttons in Settings → System
+- **Theme consistency** — settings page now matches dashboard theme when changed
+- **Brightness control** — slider now controls Surface RT backlight via `/sys/class/backlight`
+- **Rotation removed** — xrandr not supported on Surface RT framebuffer display
+- **Config protection** — auto-backup to `config.known-good.json`, auto-restore on corrupt config, id field always repaired before save
+- **MQTT stability** — old workers properly disconnected before restarting on config save
+- **Thumbnail spam fixed** — thumbnails only fetched when actively printing, failures cached per print job
+- **Security** — server now binds to localhost only (127.0.0.1)
+- **Code cleanup** — all imports at top level, STAGE_MAP moved to module level, duplicate code removed
 
 ### v1.1.0 — March 2026
 - Dynamic color themes including Bambu theme (light grey + green)
@@ -265,15 +291,10 @@ curl -s http://localhost:5000/api/display | python3 -m json.tool
 - Live printer action status (Changing filament, Auto bed leveling, Home toolhead, etc.)
 - Large ETA display with 12h/24h format toggle in settings
 - Single printer expands to full width with larger UI
-- Display timeout and always-on settings now functional (controls screen via xset)
+- Display timeout and always-on settings functional
 - Disabled printers hidden from dashboard and WebSocket broadcast
-- Fixed updater URL (was hardcoded with placeholder username)
-- Fixed duplicate Flask routes causing control buttons to fail
-- Fixed missing `request` and `Response` Flask imports
-- Fixed `id` field crash on startup — server now auto-assigns if missing
-- Chromium refreshes automatically after bambu-update (no reboot needed)
-- **Security:** Server now binds to localhost only (127.0.0.1) — not exposed to network
-- **Security:** Display rotation parameter validated against whitelist
+- Fixed updater URL, duplicate Flask routes, missing imports
+- Chromium refreshes automatically after bambu-update
 
 ### v1.0.0 — March 2026
 - Initial release
@@ -286,13 +307,3 @@ curl -s http://localhost:5000/api/display | python3 -m json.tool
 ---
 
 *BambuHelperRT — [github.com/rbjones21/BambuHelper-SurfaceRT](https://github.com/rbjones21/BambuHelper-SurfaceRT)*
-
----
-
-## v1.2.0 — Planned
-
-- **Idle clock display** — when no printer is actively printing, replace the printer panel(s) with a full-screen clock and date, matching the original BambuHelper ESP32 behavior
-- **Chromium tab accumulation fix** — kiosk autostart opens a new tab on each boot rather than reusing the existing session; fix to ensure only one tab/window is ever open
-- **Network status false offline** — the WiFi signal indicator in the header frequently shows offline incorrectly; fix the `iwconfig mlan0` parsing or polling logic
-- **Settings system buttons** — add Reboot, Shutdown, and Open Terminal buttons to the settings page (under a new System section)
-- **Settings theme consistency** — the settings page does not reflect the currently active dashboard theme; both pages should share the same color scheme when a theme is applied
