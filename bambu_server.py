@@ -386,6 +386,7 @@ def parse_print_message(state, msg):
     if 'spd_lvl'          in p: state['spd_lvl']         = int(p['spd_lvl'])
 
     STAGE_MAP = {
+        -1:  '',
         0:   'Printing',
         1:   'Auto bed leveling',
         2:   'Heatbed preheating',
@@ -421,11 +422,12 @@ def parse_print_message(state, msg):
         32:  'Cutter error',
         33:  'First layer error',
         34:  'Nozzle clog',
+        64:  'Changing filament',
         255: '',
     }
     if 'stg_cur' in p:
         stage_id = int(p['stg_cur'])
-        state['stage'] = STAGE_MAP.get(stage_id, f'Stage {stage_id}')
+        state['stage'] = STAGE_MAP.get(stage_id, '')
 
     if 'gcode_state' in p:
         state['gcode_state'] = p['gcode_state']
