@@ -573,7 +573,7 @@ def display_monitor():
             always_on   = display.get('always_on', False)
             timeout_min = int(display.get('timeout', 3))
             show_clock  = display.get('show_clock', True)
-            if always_on or timeout_min == 0 or show_clock:
+            if always_on or timeout_min == 0:
                 screen_on()
                 all_done_since = None
                 continue
