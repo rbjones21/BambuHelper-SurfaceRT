@@ -349,6 +349,36 @@ def api_printer_control():
         log.error(f"Control error: {e}")
         return jsonify({"ok": False, "error": str(e)})
 
+@app.route('/api/system/reboot', methods=['POST'])
+def api_system_reboot():
+    try:
+        import subprocess
+        subprocess.Popen(['sudo', 'reboot'])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+@app.route('/api/system/shutdown', methods=['POST'])
+def api_system_shutdown():
+    try:
+        import subprocess
+        subprocess.Popen(['sudo', 'shutdown', 'now'])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+@app.route('/api/system/terminal', methods=['POST'])
+def api_system_terminal():
+    try:
+        import subprocess
+        subprocess.Popen(
+            ['xterm', '-fs', '14', '-bg', 'black', '-fg', 'green'],
+            env={'DISPLAY': ':0', 'XAUTHORITY': '/home/rjones/.Xauthority'}
+        )
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
 # ---------------------------------------------------------------------------
 # MQTT message parser — identical for LAN and cloud (same Bambu protocol)
 # ---------------------------------------------------------------------------

@@ -83,6 +83,12 @@
   #toast.show{transform:translateX(-50%) translateY(0);}
   #toast.success{border-color:var(--green);color:var(--green);}
   #toast.error{border-color:var(--red);color:var(--red);}
+  .sys-btn { padding: 10px 20px; border-radius: 6px; border: 1px solid var(--bdr); background: rgba(255,255,255,0.05); color: var(--text); font-family: 'Rajdhani', sans-serif; font-size: 16px; font-weight: 600; cursor: pointer; letter-spacing: 1px; transition: all 0.15s; }
+  .sys-btn:hover { background: rgba(255,255,255,0.12); }
+  .sys-btn.shutdown { border-color: rgba(255,50,50,0.4); color: #ff4444; }
+  .sys-btn.shutdown:hover { background: rgba(255,50,50,0.1); }
+  .sys-btn.terminal { border-color: rgba(0,200,100,0.4); color: #00c864; }
+  .sys-btn.terminal:hover { background: rgba(0,200,100,0.1); }
 </style>
 </head>
 <body>
@@ -199,6 +205,22 @@
       <button class="btn btn-success" onclick="saveDisplay()" style="margin-top:14px">Apply Display Settings</button>
     </div>
   </div>
+
+<!-- System -->
+<div class="card">
+  <div class="card-hdr collapsed" onclick="toggleCard(this)"><h2>System</h2><span class="chev">▼</span></div>
+   <div class="card-body hidden">
+    <div class="field-row">
+      <label>Device</label>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="sys-btn" onclick="sysAction('reboot')">↺ Reboot</button>
+        <button class="sys-btn shutdown" onclick="sysAction('shutdown')">⏻ Shutdown</button>
+        <button class="sys-btn terminal" onclick="sysAction('terminal')">⌨ Terminal</button>
+      </div>
+    </div>
+    <div id="sys-msg" style="font-size:13px;color:var(--muted);margin-top:8px;display:none"></div>
+  </div>
+</div>
 
   <!-- About -->
   <div class="card">
@@ -418,6 +440,20 @@ function showToast(msg,type='') {
   const t=document.getElementById('toast');
   t.textContent=msg; t.className=`show ${type}`;
   setTimeout(()=>{t.className=type;},3000);
+}
+
+async function sysAction(action) {
+  const msg = document.getElementById('sys-msg');
+  if (action === 'reboot' || action === 'shutdown') {
+    if (!confirm(action === 'reboot' ? 'Reboot the device?' : 'Shut down the device?')) return;
+  }
+  msg.style.display = 'block';
+  msg.textContent = action === 'reboot' ? 'Rebooting...' : action === 'shutdown' ? 'Shutting down...' : 'Opening terminal...';
+  try {
+    await fetch(`/api/system/${action}`, { method: 'POST' });
+  } catch(e) {
+    msg.textContent = 'Error: ' + e.message;
+  }
 }
 
 init();
