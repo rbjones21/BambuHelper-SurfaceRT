@@ -423,8 +423,8 @@ def parse_print_message(state, msg):
         34:  'Nozzle clog',
         255: '',
     }
-    if 'current_stage' in p:
-        stage_id = int(p['current_stage'])
+    if 'stg_cur' in p:
+        stage_id = int(p['stg_cur'])
         state['stage'] = STAGE_MAP.get(stage_id, f'Stage {stage_id}')
 
     if 'gcode_state' in p:
@@ -461,8 +461,6 @@ def parse_print_message(state, msg):
         state['errors'] = []
 
     state['last_update'] = time.time()
-    # DEBUG — log all keys received so we can identify the stage field name
-    log.info(f"MQTT print keys: {list(p.keys())}")
 
 # ---------------------------------------------------------------------------
 # MQTT client factory
