@@ -198,7 +198,7 @@ def api_config_save():
 
 def broadcast_state():
     with state_lock:
-        data = list(printer_states.values())
+        data = [s for s in printer_states.values() if s.get('enabled', True)]
     socketio.emit('state_update', data)
 
 @app.route('/api/display')
