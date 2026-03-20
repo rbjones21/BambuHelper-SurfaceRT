@@ -107,8 +107,26 @@
   .net-dot.err  { background: #ff3344; box-shadow: 0 0 5px #ff334480; }
   .net-label { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
 
-  /* Printer connection dot — lives in the panel name bar */
-  .pnl-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; transition: all 0.4s; }
+  /* Single printer — expand everything */
+  #printers.single .pnl-name   { font-size: 32px; }
+  #printers.single .badge      { font-size: 18px; padding: 5px 16px; }
+  #printers.single .print-card { padding: 16px 24px; gap: 20px; }
+  #printers.single .thumb      { width: 96px; height: 96px; font-size: 48px; }
+  #printers.single .print-title { font-size: 24px; }
+  #printers.single .print-meta  { font-size: 22px; gap: 24px; }
+  #printers.single .print-stage { font-size: 22px; }
+  #printers.single .eta-time   { font-size: 36px; }
+  #printers.single .eta-label  { font-size: 32px; }
+  #printers.single .led-sect   { padding: 12px 20px 10px; }
+  #printers.single .led-fn     { font-size: 18px; }
+  #printers.single .led-pct    { font-size: 52px; }
+  #printers.single .led-pct sup { font-size: 24px; }
+  #printers.single .led-strip  { height: 18px; }
+  #printers.single .gc-lbl     { font-size: 18px; }
+  #printers.single .arc-v      { font-size: clamp(28px, 4vw, 48px) !important; }
+  #printers.single .arc-u      { font-size: clamp(16px, 2vw, 22px) !important; }
+  #printers.single .arc-tgt    { font-size: clamp(14px, 1.6vw, 18px) !important; }
+  #printers.single .pnl-dot    { width: 13px; height: 13px; }
   .pnl-dot.ok   { background: #00ff88; box-shadow: 0 0 5px #00ff8880; }
   .pnl-dot.err  { background: #ff3344; box-shadow: 0 0 5px #ff334480; }
   .pnl-dot.warn { background: #ffcc00; box-shadow: 0 0 5px #ffcc0080; }
@@ -448,7 +466,11 @@ setInterval(updateNetStatus, 30000);
 updateNetStatus();
 
 function render(states){
-  document.getElementById('printers').innerHTML = states.map((s,i)=>panel(s,i)).join('');
+  const el = document.getElementById('printers');
+  const single = states.length === 1;
+  el.style.gridTemplateColumns = single ? '1fr' : '1fr 1fr';
+  el.classList.toggle('single', single);
+  el.innerHTML = states.map((s,i)=>panel(s,i)).join('');
   states.forEach(s => { if(s.connected && s.print_name) loadThumb(s.id); });
 }
 
