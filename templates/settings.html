@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>BambuHelperRT — Settings</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0d1117;--panel:#161b22;--border:#21262d;--accent:#00d4ff;
+    --green:#00cc66;--red:#ff3355;--yellow:#ffcc00;--text:#e6edf3;
+    --muted:#7d8590;--input-bg:#0d1117;--hover:#1f2937;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif;min-height:100vh;-webkit-tap-highlight-color:transparent;}
+  header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
+  .logo{font-size:20px;font-weight:700;color:var(--accent);letter-spacing:2px;}
+  .logo em{color:var(--text);font-style:normal;}
+  .nav-btn{font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);text-decoration:none;border:1px solid var(--border);padding:5px 12px;border-radius:5px;}
+  .page{max-width:620px;margin:0 auto;padding:16px 14px 60px;}
+  .page-title{font-size:24px;font-weight:700;margin-bottom:2px;}
+  .page-sub{font-size:13px;color:var(--muted);margin-bottom:20px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;overflow:hidden;}
+  .card-hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;}
+  .card-hdr h2{font-size:15px;font-weight:700;letter-spacing:1px;color:var(--accent);}
+  .card-hdr .chev{color:var(--muted);font-size:11px;transition:transform 0.2s;}
+  .card-hdr.collapsed .chev{transform:rotate(-90deg);}
+  .card-body{padding:16px;}
+  .card-body.hidden{display:none;}
+  .tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;}
+  .tab{padding:9px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:600;cursor:pointer;letter-spacing:1px;transition:all 0.15s;}
+  .tab.active{background:var(--accent);border-color:var(--accent);color:#000;}
+  .status-row{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;background:rgba(255,255,255,0.03);border:1px solid var(--border);margin-bottom:14px;}
+  .sdot{width:7px;height:7px;border-radius:50%;background:var(--muted);}
+  .sdot.connected{background:var(--green);box-shadow:0 0 5px var(--green);}
+  .stxt{font-size:13px;font-weight:600;}
+  .stxt.connected{color:var(--green);}
+  .stxt.disconnected{color:var(--muted);}
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;letter-spacing:1px;text-transform:uppercase;}
+  .field input[type=text],.field input[type=number],.field select,.field textarea{width:100%;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:13px;padding:9px 11px;outline:none;transition:border-color 0.15s;appearance:none;}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent);}
+  .field textarea{resize:vertical;min-height:70px;}
+  .field .hint{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4;}
+  .field .hint a{color:var(--accent);text-decoration:none;}
+  .slider-row{display:flex;align-items:center;gap:10px;}
+  .slider-row input[type=range]{flex:1;accent-color:var(--accent);}
+  .slider-val{font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--text);min-width:32px;text-align:right;}
+  .check-row{display:flex;align-items:center;gap:10px;padding:6px 0;cursor:pointer;}
+  .check-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);cursor:pointer;}
+  .check-row span{font-size:13px;color:var(--text);}
+  .token-box{background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.15);border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:12px;line-height:1.6;color:var(--muted);}
+  .token-box strong{color:var(--text);}
+  .token-box ol{padding-left:14px;margin-top:4px;}
+  .token-box a{color:var(--accent);text-decoration:none;}
+  .sel-wrap{position:relative;}
+  .sel-wrap::after{content:'▾';position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;}
+  .sel-wrap select{padding-right:28px;}
+  .btn{width:100%;padding:11px;border-radius:6px;border:none;font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;cursor:pointer;text-transform:uppercase;transition:opacity 0.15s;margin-top:6px;}
+  .btn:active{opacity:0.8;}
+  .btn-primary{background:var(--accent);color:#000;}
+  .btn-danger{background:var(--red);color:#fff;}
+  .btn-success{background:var(--green);color:#000;}
+  .live-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);}
+  .si{display:flex;justify-content:space-between;align-items:center;}
+  .si .k{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;}
+  .si .v{font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--text);}
+  .sec-title{font-size:12px;font-weight:700;color:var(--accent);letter-spacing:1px;text-transform:uppercase;margin:16px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+  .sec-title:first-child{margin-top:0;}
+  .themes{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;}
+  .theme-btn{padding:5px 14px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:600;cursor:pointer;letter-spacing:1px;transition:all 0.15s;}
+  .theme-btn:hover,.theme-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(0,212,255,0.08);}
+  .color-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  .color-row .clbl{font-size:11px;color:var(--muted);min-width:80px;text-transform:uppercase;letter-spacing:0.5px;}
+  .color-row input[type=color]{width:36px;height:28px;border:1px solid var(--border);border-radius:4px;background:transparent;cursor:pointer;padding:2px;}
+  .gauge-section{background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px;}
+  .gs-title{font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;letter-spacing:1px;}
+  .gc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+  .gc-item{display:flex;flex-direction:column;align-items:center;gap:3px;}
+  .gc-item label{font-size:10px;color:var(--muted);letter-spacing:0.5px;}
+  .gc-item input[type=color]{width:100%;height:26px;border:1px solid var(--border);border-radius:4px;background:transparent;cursor:pointer;padding:2px;}
+  #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(70px);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 20px;font-size:13px;font-weight:600;color:var(--text);z-index:999;transition:transform 0.3s;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.5);}
+  #toast.show{transform:translateX(-50%) translateY(0);}
+  #toast.success{border-color:var(--green);color:var(--green);}
+  #toast.error{border-color:var(--red);color:var(--red);}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">BambuHelper<em>RT</em></div>
+  <a href="/" class="nav-btn">◀ Dashboard</a>
+</header>
+<div class="page">
+  <div class="page-title">Settings</div>
+  <div class="page-sub">Configure printers, display and gauge colors</div>
+
+  <!-- Printer Settings -->
+  <div class="card">
+    <div class="card-hdr" onclick="toggleCard(this)"><h2>Printer Settings</h2><span class="chev">▼</span></div>
+    <div class="card-body">
+      <div class="tabs">
+        <button class="tab active" onclick="switchPrinter(0,this)">Printer 1</button>
+        <button class="tab"        onclick="switchPrinter(1,this)">Printer 2</button>
+      </div>
+      <div class="status-row">
+        <div class="sdot disconnected" id="sdot"></div>
+        <span class="stxt disconnected" id="stxt">Offline</span>
+      </div>
+      <div class="field">
+        <label>Connection Mode</label>
+        <div class="sel-wrap"><select id="mode-sel" onchange="onModeChange()">
+          <option value="lan">LAN Mode (Developer Mode required)</option>
+          <option value="cloud">Bambu Cloud (All printers)</option>
+        </select></div>
+      </div>
+      <div id="lan-fields">
+        <div class="field"><label>Printer IP Address</label><input type="text" id="f-ip" placeholder="192.168.1.100"></div>
+        <div class="field"><label>LAN Access Code</label><input type="text" id="f-code" placeholder="8-character code"><div class="hint">Settings → Network → LAN Access Code on the printer</div></div>
+      </div>
+      <div id="cloud-fields" style="display:none">
+        <div class="field"><label>Server Region</label><div class="sel-wrap"><select id="f-region"><option value="us">Americas (US)</option><option value="cn">China (CN)</option></select></div></div>
+        <div class="token-box">
+          <strong>How to get your token:</strong>
+          <ol>
+            <li>Open <a href="https://bambulab.com" target="_blank">bambulab.com</a> and log in</li>
+            <li>Press F12 → Application → Cookies → bambulab.com</li>
+            <li>Copy the <strong>token</strong> cookie value</li>
+            <li>Get numeric User ID from <a href="https://makerworld.com/api/v1/design-user-service/my/preference" target="_blank">MakerWorld profile</a> → find <strong>uid</strong></li>
+          </ol>
+        </div>
+        <div class="field"><label>Access Token</label><textarea id="f-token" placeholder="Paste your Bambu Cloud token here..."></textarea></div>
+        <div class="field"><label>Bambu User ID</label><input type="text" id="f-uid" placeholder="Numeric user ID (e.g. 178540148)"><div class="hint">Found at MakerWorld profile API — look for uid field</div></div>
+      </div>
+      <div class="field"><label>Printer Serial Number</label><input type="text" id="f-serial" placeholder="e.g. 31B8AP5B2600220"></div>
+      <div class="field"><label>Printer Name</label><input type="text" id="f-name" placeholder="e.g. H2D"></div>
+      <label class="check-row"><input type="checkbox" id="f-enabled"><span>Enable this printer</span></label>
+      <button class="btn btn-primary" onclick="savePrinter()">Save Printer Settings</button>
+      <button class="btn btn-danger"  onclick="clearToken()">Clear Token</button>
+      <div class="live-stats">
+        <div class="si"><span class="k">State</span><span class="v" id="s-state">--</span></div>
+        <div class="si"><span class="k">Progress</span><span class="v" id="s-prog">--%</span></div>
+        <div class="si"><span class="k">Nozzle</span><span class="v" id="s-nozzle">--°C</span></div>
+        <div class="si"><span class="k">Bed</span><span class="v" id="s-bed">--°C</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Display Settings -->
+  <div class="card">
+    <div class="card-hdr" onclick="toggleCard(this)"><h2>Display</h2><span class="chev">▼</span></div>
+    <div class="card-body">
+      <div class="sec-title">Screen</div>
+      <div class="field">
+        <label>Brightness</label>
+        <div class="slider-row">
+          <input type="range" id="d-bright" min="10" max="255" value="200" oninput="document.getElementById('d-bval').textContent=this.value">
+          <span class="slider-val" id="d-bval">200</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Screen Rotation</label>
+        <div class="sel-wrap"><select id="d-rot">
+          <option value="normal">0° (default)</option>
+          <option value="right">90°</option>
+          <option value="inverted">180°</option>
+          <option value="left">270°</option>
+        </select></div>
+      </div>
+      <div class="field">
+        <label>Display off after print complete (minutes, 0 = never)</label>
+        <input type="number" id="d-timeout" value="3" min="0" max="60">
+      </div>
+      <label class="check-row"><input type="checkbox" id="d-always-on"><span>Keep display always on (override timeout)</span></label>
+      <label class="check-row"><input type="checkbox" id="d-clock" checked><span>Show clock after print (instead of screen off)</span></label>
+      <div class="field-row">
+        <label>Time Format</label>
+        <select id="d-time-format">
+          <option value="12h">12 Hour (3:45 PM)</option>
+          <option value="24h">24 Hour (15:45)</option>
+        </select>
+      </div>
+
+      <div class="sec-title" style="margin-top:20px">Gauge Colors</div>
+      <div class="themes">
+        <button class="theme-btn active" onclick="applyTheme('default',this)">Default</button>
+        <button class="theme-btn" onclick="applyTheme('bambu',this)">Bambu</button>
+        <button class="theme-btn" onclick="applyTheme('mono_green',this)">Mono Green</button>
+        <button class="theme-btn" onclick="applyTheme('neon',this)">Neon</button>
+        <button class="theme-btn" onclick="applyTheme('warm',this)">Warm</button>
+        <button class="theme-btn" onclick="applyTheme('ocean',this)">Ocean</button>
+      </div>
+      <div class="color-row">
+        <span class="clbl">Background</span>
+        <input type="color" id="c-bg" value="#0a0c0f" oninput="clearTheme()">
+        <span class="clbl" style="margin-left:12px">Track</span>
+        <input type="color" id="c-track" value="#141820" oninput="clearTheme()">
+      </div>
+      <div id="gauge-sections"></div>
+      <button class="btn btn-success" onclick="saveDisplay()" style="margin-top:14px">Apply Display Settings</button>
+    </div>
+  </div>
+
+  <!-- About -->
+  <div class="card">
+    <div class="card-hdr collapsed" onclick="toggleCard(this)"><h2>About</h2><span class="chev">▼</span></div>
+    <div class="card-body hidden">
+      <p style="font-size:13px;color:var(--muted);line-height:1.6">
+        BambuHelperRT — Using a SurfaceRT running Debian 12 to Monitor Bambu printers, this is a remake taking inspiration from <a href="https://github.com/Keralots/BambuHelper" style="color:var(--accent)">Keralots/BambuHelper</a><br><br>
+        For info on running Debian on SurfaceRT: <a href="https://open-rt.gitbook.io/open-surfacert/surface-rt/linux" style="color:var(--accent)">open-rt.gitbook.io</a><br><br>
+        Project repo: <a href="https://github.com/rbjones21/BambuHelper-SurfaceRT" style="color:var(--accent)">rbjones21/BambuHelper-SurfaceRT</a>
+      </p>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const GAUGES = [
+  {id:'progress', label:'Progress',    arc:'#00c8ff', glabel:'#00c8ff', value:'#ffffff'},
+  {id:'nozzle',   label:'Nozzle',      arc:'#ff4444', glabel:'#ff6666', value:'#ffffff'},
+  {id:'bed',      label:'Bed',         arc:'#ff9944', glabel:'#ffaa66', value:'#ffffff'},
+  {id:'fan_part', label:'Part Fan',    arc:'#00c8ff', glabel:'#00c8ff', value:'#ffffff'},
+  {id:'fan_aux',  label:'Aux Fan',     arc:'#44aaff', glabel:'#44aaff', value:'#ffffff'},
+  {id:'fan_cham', label:'Chamber Fan', arc:'#aa66ff', glabel:'#aa66ff', value:'#ffffff'},
+];
+
+const THEMES = {
+  default:    {bg:'#0a0c0f',track:'#141820',progress:{arc:'#00c8ff',glabel:'#00c8ff',value:'#e8edf5'},nozzle:{arc:'#00c8ff',glabel:'#00c8ff',value:'#e8edf5'},bed:{arc:'#ff9944',glabel:'#ff9944',value:'#e8edf5'},fan_part:{arc:'#00c8ff',glabel:'#00c8ff',value:'#e8edf5'},fan_aux:{arc:'#44aaff',glabel:'#44aaff',value:'#e8edf5'},fan_cham:{arc:'#aa66ff',glabel:'#aa66ff',value:'#e8edf5'}},
+  bambu:      {bg:'#f0f2f4',track:'#dde1e7',progress:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'},nozzle:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'},bed:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'},fan_part:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'},fan_aux:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'},fan_cham:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'}},
+  mono_green: {bg:'#050f08',track:'#0a1a0e',progress:{arc:'#00ff66',glabel:'#00ff66',value:'#ccffdd'},nozzle:{arc:'#00ee55',glabel:'#00ee55',value:'#ccffdd'},bed:{arc:'#00dd44',glabel:'#00dd44',value:'#ccffdd'},fan_part:{arc:'#00ff66',glabel:'#00ff66',value:'#ccffdd'},fan_aux:{arc:'#00cc44',glabel:'#00cc44',value:'#ccffdd'},fan_cham:{arc:'#009933',glabel:'#009933',value:'#ccffdd'}},
+  neon:       {bg:'#080010',track:'#120020',progress:{arc:'#ff00ff',glabel:'#ff00ff',value:'#ffffff'},nozzle:{arc:'#ff0066',glabel:'#ff0066',value:'#ffffff'},bed:{arc:'#ff6600',glabel:'#ff6600',value:'#ffffff'},fan_part:{arc:'#00ffff',glabel:'#00ffff',value:'#ffffff'},fan_aux:{arc:'#aaff00',glabel:'#aaff00',value:'#ffffff'},fan_cham:{arc:'#ff00aa',glabel:'#ff00aa',value:'#ffffff'}},
+  warm:       {bg:'#0f0800',track:'#1a1000',progress:{arc:'#ffaa00',glabel:'#ffaa00',value:'#fff0cc'},nozzle:{arc:'#ff4400',glabel:'#ff6633',value:'#fff0cc'},bed:{arc:'#ff8800',glabel:'#ffaa44',value:'#fff0cc'},fan_part:{arc:'#ffcc00',glabel:'#ffcc00',value:'#fff0cc'},fan_aux:{arc:'#ff9900',glabel:'#ff9900',value:'#fff0cc'},fan_cham:{arc:'#cc5500',glabel:'#cc5500',value:'#fff0cc'}},
+  ocean:      {bg:'#000a14',track:'#001428',progress:{arc:'#00aaff',glabel:'#00aaff',value:'#cce8ff'},nozzle:{arc:'#0066ff',glabel:'#4488ff',value:'#cce8ff'},bed:{arc:'#00ccaa',glabel:'#00ddbb',value:'#cce8ff'},fan_part:{arc:'#0088ff',glabel:'#0088ff',value:'#cce8ff'},fan_aux:{arc:'#00bbcc',glabel:'#00bbcc',value:'#cce8ff'},fan_cham:{arc:'#0044aa',glabel:'#0044aa',value:'#cce8ff'}},
+};
+
+function buildGaugeSections() {
+  document.getElementById('gauge-sections').innerHTML = GAUGES.map(g => `
+    <div class="gauge-section">
+      <div class="gs-title">${g.label}</div>
+      <div class="gc-grid">
+        <div class="gc-item"><label>Arc</label><input type="color" id="gc-${g.id}-arc"    value="${g.arc}"    oninput="clearTheme()"></div>
+        <div class="gc-item"><label>Label</label><input type="color" id="gc-${g.id}-glabel" value="${g.glabel}" oninput="clearTheme()"></div>
+        <div class="gc-item"><label>Value</label><input type="color" id="gc-${g.id}-value"  value="${g.value}"  oninput="clearTheme()"></div>
+      </div>
+    </div>`).join('');
+}
+
+function applyTheme(name, btn) {
+  const t = THEMES[name]; if(!t) return;
+  document.getElementById('c-bg').value    = t.bg;
+  document.getElementById('c-track').value = t.track;
+  GAUGES.forEach(g => {
+    const gc = t[g.id]; if(!gc) return;
+    document.getElementById(`gc-${g.id}-arc`).value    = gc.arc;
+    document.getElementById(`gc-${g.id}-glabel`).value = gc.glabel;
+    document.getElementById(`gc-${g.id}-value`).value  = gc.value;
+  });
+  document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+}
+
+function clearTheme() {
+  document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+}
+
+function loadDisplaySettings(cfg) {
+  const d = cfg.display || {};
+  document.getElementById('d-bright').value  = d.brightness || 200;
+  document.getElementById('d-bval').textContent = d.brightness || 200;
+  document.getElementById('d-rot').value     = d.rotation   || 'normal';
+  document.getElementById('d-timeout').value = d.timeout !== undefined ? d.timeout : 3;
+  document.getElementById('d-always-on').checked = d.always_on  || false;
+  document.getElementById('d-clock').checked     = d.show_clock !== false;
+  document.getElementById('d-time-format').value = d.time_format || '12h';
+  if(d.colors) {
+    if(d.colors.bg)    document.getElementById('c-bg').value    = d.colors.bg;
+    if(d.colors.track) document.getElementById('c-track').value = d.colors.track;
+    GAUGES.forEach(g => {
+      const gc = d.colors[g.id]; if(!gc) return;
+      if(gc.arc)    document.getElementById(`gc-${g.id}-arc`).value    = gc.arc;
+      if(gc.glabel) document.getElementById(`gc-${g.id}-glabel`).value = gc.glabel;
+      if(gc.value)  document.getElementById(`gc-${g.id}-value`).value  = gc.value;
+    });
+  }
+}
+
+async function saveDisplay() {
+  const colors = {bg:document.getElementById('c-bg').value, track:document.getElementById('c-track').value};
+  GAUGES.forEach(g => {
+    colors[g.id] = {
+      arc:    document.getElementById(`gc-${g.id}-arc`).value,
+      glabel: document.getElementById(`gc-${g.id}-glabel`).value,
+      value:  document.getElementById(`gc-${g.id}-value`).value,
+    };
+  });
+  config.display = {
+    brightness: parseInt(document.getElementById('d-bright').value),
+    rotation:   document.getElementById('d-rot').value,
+    timeout:    parseInt(document.getElementById('d-timeout').value),
+    always_on:  document.getElementById('d-always-on').checked,
+    show_clock: document.getElementById('d-clock').checked,
+    time_format: document.getElementById('d-time-format').value,
+    colors,
+  };
+  try {
+    const res  = await fetch('/api/config/save', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(config)});
+    const data = await res.json();
+    if(data.ok) {
+      showToast('Display settings saved', 'success');
+      // Apply rotation immediately via xrandr
+      applyRotation(config.display.rotation);
+    } else showToast(data.error||'Save failed','error');
+  } catch(e) { showToast('Could not reach server','error'); }
+}
+
+async function applyRotation(rotation) {
+  try {
+    await fetch('/api/display/rotate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({rotation})});
+  } catch(e) {}
+}
+
+// Printer settings
+let currentIdx=0, serverState=[], config={printers:[{},{}]};
+
+async function init() {
+  buildGaugeSections();
+  try {
+    const [cfgRes,stateRes] = await Promise.all([fetch('/api/config'), fetch('/api/state')]);
+    config      = await cfgRes.json();
+    serverState = await stateRes.json();
+    while(config.printers.length < 2) config.printers.push({id:`printer${config.printers.length+1}`,name:`Printer ${config.printers.length+1}`,mode:'lan',enabled:true});
+    loadPrinterForm(0);
+    loadDisplaySettings(config);
+    updateStats();
+    setInterval(refreshState, 4000);
+  } catch(e) { showToast('Could not connect to server','error'); }
+}
+
+async function refreshState() {
+  try { serverState = await (await fetch('/api/state')).json(); updateStats(); } catch(e) {}
+}
+
+function switchPrinter(idx, btn) {
+  currentIdx = idx;
+  document.querySelectorAll('.tab').forEach((b,i) => b.classList.toggle('active', i===idx));
+  loadPrinterForm(idx); updateStats();
+}
+
+function loadPrinterForm(idx) {
+  const p = config.printers[idx]||{}, mode = p.mode||'lan';
+  document.getElementById('mode-sel').value   = mode;
+  document.getElementById('f-ip').value       = p.ip||'';
+  document.getElementById('f-code').value     = p.access_code||'';
+  document.getElementById('f-region').value   = p.region||'us';
+  document.getElementById('f-token').value    = p.bambu_token||'';
+  document.getElementById('f-uid').value      = p.bambu_user_id||'';
+  document.getElementById('f-serial').value   = p.serial||'';
+  document.getElementById('f-name').value     = p.name||'';
+  document.getElementById('f-enabled').checked = p.enabled !== false;
+  onModeChange();
+}
+
+function onModeChange() {
+  const m = document.getElementById('mode-sel').value;
+  document.getElementById('lan-fields').style.display   = m==='lan'   ? '' : 'none';
+  document.getElementById('cloud-fields').style.display = m==='cloud' ? '' : 'none';
+}
+
+async function savePrinter() {
+  const mode = document.getElementById('mode-sel').value;
+  const p    = config.printers[currentIdx]||{};
+  p.id       = p.id||`printer${currentIdx+1}`;
+  p.name     = document.getElementById('f-name').value.trim()||`Printer ${currentIdx+1}`;
+  p.serial   = document.getElementById('f-serial').value.trim();
+  p.mode     = mode; p.enabled = document.getElementById('f-enabled').checked;
+  if(mode==='lan') {
+    p.ip=document.getElementById('f-ip').value.trim();
+    p.access_code=document.getElementById('f-code').value.trim();
+    delete p.bambu_token; delete p.bambu_user_id; delete p.region;
+  } else {
+    p.region=document.getElementById('f-region').value;
+    p.bambu_token=document.getElementById('f-token').value.trim();
+    p.bambu_user_id=document.getElementById('f-uid').value.trim();
+    delete p.ip; delete p.access_code;
+  }
+  config.printers[currentIdx] = p;
+  try {
+    const res=await fetch('/api/config/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});
+    const data=await res.json();
+    if(data.ok) showToast('Printer settings saved','success');
+    else showToast(data.error||'Save failed','error');
+  } catch(e) { showToast('Could not reach server','error'); }
+}
+
+function clearToken() {
+  document.getElementById('f-token').value='';
+  document.getElementById('f-uid').value='';
+  showToast('Token cleared','success');
+}
+
+function updateStats() {
+  const s=serverState[currentIdx]; if(!s) return;
+  document.getElementById('sdot').className=`sdot ${s.connected?'connected':'disconnected'}`;
+  document.getElementById('stxt').className=`stxt ${s.connected?'connected':'disconnected'}`;
+  document.getElementById('stxt').textContent=s.connected?'Connected':'Offline';
+  document.getElementById('s-state').textContent =s.gcode_state||'--';
+  document.getElementById('s-prog').textContent  =`${s.progress||0}%`;
+  document.getElementById('s-nozzle').textContent=`${Math.round(s.nozzle_temp||0)}/${Math.round(s.nozzle_target||0)}°C`;
+  document.getElementById('s-bed').textContent   =`${Math.round(s.bed_temp||0)}/${Math.round(s.bed_target||0)}°C`;
+}
+
+function toggleCard(hdr) {
+  hdr.classList.toggle('collapsed');
+  hdr.nextElementSibling.classList.toggle('hidden');
+}
+
+function showToast(msg,type='') {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className=`show ${type}`;
+  setTimeout(()=>{t.className=type;},3000);
+}
+
+init();
+</script>
+</body>
+</html>
