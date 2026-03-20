@@ -172,6 +172,13 @@
       </div>
       <label class="check-row"><input type="checkbox" id="d-always-on"><span>Keep display always on (override timeout)</span></label>
       <label class="check-row"><input type="checkbox" id="d-clock" checked><span>Show clock after print (instead of screen off)</span></label>
+      <div class="field-row">
+        <label>Time Format</label>
+        <select id="d-time-format">
+          <option value="12h">12 Hour (3:45 PM)</option>
+          <option value="24h">24 Hour (15:45)</option>
+        </select>
+      </div>
 
       <div class="sec-title" style="margin-top:20px">Gauge Colors</div>
       <div class="themes">
@@ -198,8 +205,8 @@
     <div class="card-hdr collapsed" onclick="toggleCard(this)"><h2>About</h2><span class="chev">▼</span></div>
     <div class="card-body hidden">
       <p style="font-size:13px;color:var(--muted);line-height:1.6">
-        BambuHelper Surface RT — port of <a href="https://github.com/Keralots/BambuHelper" style="color:var(--accent)">Keralots/BambuHelper</a> for Microsoft Surface RT running Debian 12.<br><br>
-        Your repo: <a href="https://github.com/rbjones21/BambuHelper-SurfaceRT" style="color:var(--accent)">rbjones21/BambuHelper-SurfaceRT</a>
+        BambuHelperRT — Using a SurfaceRT running Debian 12 to Monitor Bambu printers, this is a remake taking inspiration from <a href="https://github.com/Keralots/BambuHelper" style="color:var(--accent)">Keralots/BambuHelper</a><br><br>
+        For info on running Debian on SurfaceRT: <a href="https://open-rt.gitbook.io/open-surfacert/surface-rt/linux" style="color:var(--accent)">open-rt.gitbook.io</a>
       </p>
     </div>
   </div>
@@ -263,6 +270,7 @@ function loadDisplaySettings(cfg) {
   document.getElementById('d-timeout').value = d.timeout !== undefined ? d.timeout : 3;
   document.getElementById('d-always-on').checked = d.always_on  || false;
   document.getElementById('d-clock').checked     = d.show_clock !== false;
+  document.getElementById('d-time-format').value = d.time_format || '12h';
   if(d.colors) {
     if(d.colors.bg)    document.getElementById('c-bg').value    = d.colors.bg;
     if(d.colors.track) document.getElementById('c-track').value = d.colors.track;
@@ -290,6 +298,7 @@ async function saveDisplay() {
     timeout:    parseInt(document.getElementById('d-timeout').value),
     always_on:  document.getElementById('d-always-on').checked,
     show_clock: document.getElementById('d-clock').checked,
+    time_format: document.getElementById('d-time-format').value,
     colors,
   };
   try {

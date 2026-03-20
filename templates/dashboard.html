@@ -63,7 +63,7 @@
   /* ETA block */
   .eta-block { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 72px; flex-shrink: 0; gap: 2px; }
   .eta-time  { font-size: 22px; font-weight: 700; letter-spacing: 1px; color: var(--ac, #00c8ff); line-height: 1; font-family: 'Share Tech Mono', monospace; }
-  .eta-label { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+  .eta-label { font-size: 13px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
 
   /* Current stage status */
   .print-stage { font-size: 16px; font-weight: 600; color: var(--text); margin-top: 4px; letter-spacing: 0.5px; }
@@ -209,12 +209,18 @@ async function loadDisplayConfig() {
     const res  = await fetch('/api/display');
     const data = await res.json();
     applyColors(data);
+    if (data.time_format === '24h') USE_12H = false;
+    else USE_12H = true;
   } catch(e) {}
 }
 loadDisplayConfig();
 
 // Clock
-setInterval(() => { document.getElementById('clk').textContent = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}); }, 1000);
+let USE_12H = true; // default, overridden by display config
+
+setInterval(() => {
+  document.getElementById('clk').textContent = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:USE_12H});
+}, 1000);
 const AS = 225, AW = 270;
 function pt(cx,cy,r,deg){ const a=(deg-90)*Math.PI/180; return [cx+r*Math.cos(a), cy+r*Math.sin(a)]; }
 function arcD(cx,cy,r,s,e){
@@ -300,7 +306,7 @@ function panel(s, idx){
 
   // ETA clock time
   const etaClock = s.time_remaining>0
-    ? new Date(Date.now()+s.time_remaining*60000).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true})
+    ? new Date(Date.now()+s.time_remaining*60000).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:USE_12H})
     : '--:--';
 
   const etaBlock = isActive ? `<div class="eta-block">
