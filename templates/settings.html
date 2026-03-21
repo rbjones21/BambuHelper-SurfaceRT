@@ -89,6 +89,14 @@
   .sys-btn.shutdown:hover { background: rgba(255,50,50,0.1); }
   .sys-btn.terminal { border-color: rgba(0,200,100,0.4); color: #00c864; }
   .sys-btn.terminal:hover { background: rgba(0,200,100,0.1); }
+  .net-item { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; border-radius:6px; background:rgba(255,255,255,0.03); border:1px solid var(--border); margin-bottom:6px; cursor:pointer; transition:background 0.15s; }
+  .net-item:hover { background:rgba(255,255,255,0.07); }
+  .net-item.active-net { border-color:var(--green); }
+  .net-ssid { font-size:14px; font-weight:600; color:var(--text); }
+  .net-meta { font-size:11px; color:var(--muted); margin-top:2px; }
+  .net-signal { font-size:18px; color: var(--accent); }
+  .net-forget { font-size:11px; color:var(--red); padding:3px 8px; border:1px solid var(--red); border-radius:4px; background:transparent; cursor:pointer; opacity:0.7; }
+  .net-forget:hover { opacity:1; }
 </style>
 </head>
 <body>
@@ -198,6 +206,38 @@
     </div>
   </div>
 
+<!-- Network -->
+<div class="card">
+  <div class="card-hdr collapsed" onclick="toggleCard(this)"><h2>Network</h2><span class="chev">▼</span></div>
+  <div class="card-body hidden">
+    <!-- Current connection -->
+    <div class="status-row" id="net-current">
+      <div class="sdot" id="net-sdot"></div>
+      <span class="stxt" id="net-stxt">Loading...</span>
+    </div>
+
+    <!-- Scan button -->
+    <button class="btn btn-outline" onclick="scanNetworks()" id="net-scan-btn" style="margin-bottom:12px">
+      ⟳ Scan for Networks
+    </button>
+
+    <!-- Network list -->
+    <div id="net-list"></div>
+
+    <!-- Connect form -->
+    <div id="net-connect-form" style="display:none">
+      <div class="field" style="margin-top:12px">
+        <label>Connecting to: <strong id="net-connect-ssid"></strong></label>
+        <input type="password" id="net-password" placeholder="Password (leave blank if open network)">
+      </div>
+      <div style="display:flex;gap:10px;margin-top:10px">
+        <button class="btn btn-success" onclick="connectNetwork()">Connect</button>
+        <button class="btn btn-outline" onclick="cancelConnect()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>  
+
 <!-- System -->
 <div class="card">
   <div class="card-hdr collapsed" onclick="toggleCard(this)"><h2>System</h2><span class="chev">▼</span></div>
@@ -282,7 +322,6 @@ function loadDisplaySettings(cfg) {
   const d = cfg.display || {};
   document.getElementById('d-bright').value  = d.brightness || 200;
   document.getElementById('d-bval').textContent = d.brightness || 200;
-  document.getElementById('d-rot').value     = d.rotation   || 'normal';
   document.getElementById('d-timeout').value = d.timeout !== undefined ? d.timeout : 3;
   document.getElementById('d-always-on').checked = d.always_on  || false;
   document.getElementById('d-clock').checked     = d.show_clock !== false;
@@ -349,7 +388,6 @@ async function saveDisplay() {
   });
   config.display = {
     brightness: parseInt(document.getElementById('d-bright').value),
-    rotation:   document.getElementById('d-rot').value,
     timeout:    parseInt(document.getElementById('d-timeout').value),
     always_on:  document.getElementById('d-always-on').checked,
     show_clock: document.getElementById('d-clock').checked,
@@ -361,8 +399,6 @@ async function saveDisplay() {
     const data = await res.json();
     if(data.ok) {
       showToast('Display settings saved', 'success');
-      // Apply rotation immediately via xrandr
-      applyRotation(config.display.rotation);
     } else showToast(data.error||'Save failed','error');
   } catch(e) { showToast('Could not reach server','error'); }
 }
@@ -397,6 +433,7 @@ async function init() {
     updateStats();
     setInterval(refreshState, 4000);
   } catch(e) { showToast('Could not connect to server','error'); }
+  loadNetworkStatus();
 }
 
 async function refreshState() {
@@ -495,6 +532,115 @@ async function sysAction(action) {
     await fetch(`/api/system/${action}`, { method: 'POST' });
   } catch(e) {
     msg.textContent = 'Error: ' + e.message;
+  }
+}
+
+let selectedSSID = null;
+
+async function loadNetworkStatus() {
+  try {
+    const res  = await fetch('/api/network/status');
+    const data = await res.json();
+    if (data.ok) {
+      document.getElementById('net-sdot').style.background = 'var(--green)';
+      document.getElementById('net-stxt').textContent = `${data.ssid} — ${data.ip}`;
+    } else {
+      document.getElementById('net-stxt').textContent = 'Not connected';
+    }
+  } catch(e) {
+    document.getElementById('net-stxt').textContent = 'Could not reach server';
+  }
+}
+
+async function scanNetworks() {
+  const btn  = document.getElementById('net-scan-btn');
+  const list = document.getElementById('net-list');
+  btn.textContent = '⟳ Scanning...';
+  btn.disabled    = true;
+  list.innerHTML  = '<div style="color:var(--muted);font-size:13px;padding:8px">Scanning...</div>';
+  try {
+    const res  = await fetch('/api/network/scan');
+    const data = await res.json();
+    if (data.ok) {
+      list.innerHTML = data.networks.map(n => `
+        <div class="net-item ${n.active ? 'active-net' : ''}" onclick="selectNetwork('${n.ssid}', ${n.active})">
+          <div>
+            <div class="net-ssid">${n.active ? '✓ ' : ''}${n.ssid}</div>
+            <div class="net-meta">${n.security} · Signal ${n.signal}%</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="net-signal">${n.signal > 70 ? '▂▄▆█' : n.signal > 40 ? '▂▄▆·' : '▂▄··'}</span>
+            ${n.active ? '' : `<button class="net-forget" onclick="forgetNetwork(event,'${n.ssid}')">Forget</button>`}
+          </div>
+        </div>
+      `).join('');
+    } else {
+      list.innerHTML = `<div style="color:var(--red);font-size:13px">${data.error}</div>`;
+    }
+  } catch(e) {
+    list.innerHTML = '<div style="color:var(--red);font-size:13px">Scan failed</div>';
+  }
+  btn.textContent = '⟳ Scan for Networks';
+  btn.disabled    = false;
+}
+
+function selectNetwork(ssid, isActive) {
+  if (isActive) return;
+  selectedSSID = ssid;
+  document.getElementById('net-connect-ssid').textContent = ssid;
+  document.getElementById('net-password').value = '';
+  document.getElementById('net-connect-form').style.display = '';
+  document.getElementById('net-password').focus();
+}
+
+function cancelConnect() {
+  selectedSSID = null;
+  document.getElementById('net-connect-form').style.display = 'none';
+}
+
+async function connectNetwork() {
+  if (!selectedSSID) return;
+  const password = document.getElementById('net-password').value;
+  showToast(`Connecting to ${selectedSSID}...`, 'success');
+  document.getElementById('net-connect-form').style.display = 'none';
+  try {
+    const res  = await fetch('/api/network/connect', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({ssid: selectedSSID, password})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(`Connected to ${selectedSSID}`, 'success');
+      loadNetworkStatus();
+      scanNetworks();
+    } else {
+      showToast(data.error || 'Connection failed', 'error');
+    }
+  } catch(e) {
+    showToast('Connection failed', 'error');
+  }
+  selectedSSID = null;
+}
+
+async function forgetNetwork(event, ssid) {
+  event.stopPropagation();
+  if (!confirm(`Forget network "${ssid}"?`)) return;
+  try {
+    const res  = await fetch('/api/network/forget', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({ssid})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(`Forgot ${ssid}`, 'success');
+      scanNetworks();
+    } else {
+      showToast(data.error || 'Failed to forget', 'error');
+    }
+  } catch(e) {
+    showToast('Failed', 'error');
   }
 }
 

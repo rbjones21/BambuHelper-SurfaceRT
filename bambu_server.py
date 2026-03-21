@@ -594,6 +594,114 @@ def display_monitor():
         except Exception as e:
             log.warning(f"Display monitor error: {e}")
 
+@app.route('/api/network/status')
+def api_network_status():
+    try:
+        # Current connection
+        conn = subprocess.run(
+            ['nmcli', '-t', '-f', 'NAME,TYPE,STATE,DEVICE', 'connection', 'show', '--active'],
+            capture_output=True, text=True, timeout=5
+        )
+        ip = subprocess.run(
+            ['nmcli', '-t', '-f', 'IP4.ADDRESS,IP4.GATEWAY', 'device', 'show', 'mlan0'],
+            capture_output=True, text=True, timeout=5
+        )
+        ssid, ip_addr, gateway = None, None, None
+        for line in conn.stdout.splitlines():
+            parts = line.split(':')
+            if len(parts) >= 3 and parts[1] == '802-11-wireless':
+                ssid = parts[0]
+        for line in ip.stdout.splitlines():
+            if 'IP4.ADDRESS' in line:
+                ip_addr = line.split(':')[1].split('/')[0]
+            if 'IP4.GATEWAY' in line:
+                gateway = line.split(':')[1]
+        return jsonify({"ok": True, "ssid": ssid, "ip": ip_addr, "gateway": gateway})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+@app.route('/api/network/scan')
+def api_network_scan():
+    try:
+        result = subprocess.run(
+            ['nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY,IN-USE', 'device', 'wifi', 'list', '--rescan', 'yes'],
+            capture_output=True, text=True, timeout=15
+        )
+        networks = []
+        seen = set()
+        for line in result.stdout.splitlines():
+            parts = line.split(':')
+            if len(parts) >= 3 and parts[0] and parts[0] not in seen:
+                seen.add(parts[0])
+                networks.append({
+                    "ssid":     parts[0],
+                    "signal":   int(parts[1]) if parts[1].isdigit() else 0,
+                    "security": parts[2] or 'Open',
+                    "active":   parts[3] == '*' if len(parts) > 3 else False
+                })
+        networks.sort(key=lambda x: x['signal'], reverse=True)
+        return jsonify({"ok": True, "networks": networks})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+@app.route('/api/network/connect', methods=['POST'])
+def api_network_connect():
+    try:
+        data     = request.get_json()
+        ssid     = data.get('ssid', '').strip()
+        password = data.get('password', '').strip()
+        if not ssid:
+            return jsonify({"ok": False, "error": "SSID required"})
+
+        # Get current SSID for fallback
+        current = subprocess.run(
+            ['nmcli', '-t', '-f', 'NAME,TYPE,STATE', 'connection', 'show', '--active'],
+            capture_output=True, text=True, timeout=5
+        )
+        current_ssid = None
+        for line in current.stdout.splitlines():
+            parts = line.split(':')
+            if len(parts) >= 2 and parts[1] == '802-11-wireless':
+                current_ssid = parts[0]
+
+        # Attempt connection
+        cmd = ['sudo', 'nmcli', 'device', 'wifi', 'connect', ssid]
+        if password:
+            cmd += ['password', password]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+        if result.returncode == 0:
+            return jsonify({"ok": True, "message": f"Connected to {ssid}"})
+        else:
+            # Failed — try to reconnect to previous network
+            if current_ssid and current_ssid != ssid:
+                subprocess.run(
+                    ['sudo', 'nmcli', 'connection', 'up', current_ssid],
+                    capture_output=True, timeout=15
+                )
+            return jsonify({"ok": False, "error": result.stderr.strip() or "Connection failed"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+@app.route('/api/network/forget', methods=['POST'])
+def api_network_forget():
+    try:
+        data = request.get_json()
+        ssid = data.get('ssid', '').strip()
+        if not ssid:
+            return jsonify({"ok": False, "error": "SSID required"})
+        result = subprocess.run(
+            ['sudo', 'nmcli', 'connection', 'delete', ssid],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0:
+            return jsonify({"ok": True})
+        else:
+            return jsonify({"ok": False, "error": result.stderr.strip()})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
