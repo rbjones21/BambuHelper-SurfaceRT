@@ -235,6 +235,31 @@
         <button class="btn btn-outline" onclick="cancelConnect()">Cancel</button>
       </div>
     </div>
+    <!-- IP Configuration -->
+    <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px">
+      <div class="field-row" style="margin-bottom:10px">
+        <label>IP Configuration</label>
+        <select id="net-ip-method" onchange="toggleStaticFields()">
+          <option value="auto">DHCP (Automatic)</option>
+          <option value="manual">Static IP</option>
+        </select>
+      </div>
+      <div id="net-static-fields" style="display:none">
+        <div class="field" style="margin-bottom:8px">
+          <label>IP Address (e.g. 192.168.1.100/24)</label>
+          <input type="text" id="net-ip-address" placeholder="10.0.0.100/24">
+        </div>
+        <div class="field" style="margin-bottom:8px">
+          <label>Gateway</label>
+          <input type="text" id="net-ip-gateway" placeholder="10.0.0.1">
+        </div>
+        <div class="field" style="margin-bottom:8px">
+          <label>DNS Servers (comma separated)</label>
+          <input type="text" id="net-ip-dns" placeholder="8.8.8.8,8.8.4.4">
+        </div>
+      </div>
+      <button class="btn btn-success" onclick="saveIPConfig()" style="margin-top:8px">Apply IP Settings</button>
+    </div>
   </div>
 </div>  
 
@@ -550,6 +575,7 @@ async function loadNetworkStatus() {
   } catch(e) {
     document.getElementById('net-stxt').textContent = 'Could not reach server';
   }
+loadIPConfig();
 }
 
 async function scanNetworks() {
@@ -641,6 +667,56 @@ async function forgetNetwork(event, ssid) {
     }
   } catch(e) {
     showToast('Failed', 'error');
+  }
+}
+
+function toggleStaticFields() {
+  const method = document.getElementById('net-ip-method').value;
+  document.getElementById('net-static-fields').style.display = method === 'manual' ? '' : 'none';
+}
+
+async function loadIPConfig() {
+  try {
+    const res  = await fetch('/api/network/ipconfig');
+    const data = await res.json();
+    if (data.ok) {
+      document.getElementById('net-ip-method').value = data.method === 'manual' ? 'manual' : 'auto';
+      document.getElementById('net-ip-address').value = data.address || '';
+      document.getElementById('net-ip-gateway').value = data.gateway || '';
+      document.getElementById('net-ip-dns').value     = data.dns || '8.8.8.8,8.8.4.4';
+      toggleStaticFields();
+    }
+  } catch(e) {}
+}
+
+async function saveIPConfig() {
+  const method  = document.getElementById('net-ip-method').value;
+  const address = document.getElementById('net-ip-address').value.trim();
+  const gateway = document.getElementById('net-ip-gateway').value.trim();
+  const dns     = document.getElementById('net-ip-dns').value.trim();
+  const ssid    = document.getElementById('net-stxt').textContent.split(' —')[0].trim();
+
+  if (method === 'manual' && !address) {
+    showToast('IP address is required for static configuration', 'error');
+    return;
+  }
+
+  showToast('Applying IP settings...', 'success');
+  try {
+    const res  = await fetch('/api/network/ipconfig', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({ssid, method, address, gateway, dns})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast('IP settings applied', 'success');
+      setTimeout(loadNetworkStatus, 2000);
+    } else {
+      showToast(data.error || 'Failed to apply settings', 'error');
+    }
+  } catch(e) {
+    showToast('Failed to apply settings', 'error');
   }
 }
 

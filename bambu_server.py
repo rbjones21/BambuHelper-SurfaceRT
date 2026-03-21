@@ -702,6 +702,67 @@ def api_network_forget():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
+@app.route('/api/network/ipconfig', methods=['GET'])
+def api_network_ipconfig():
+    try:
+        result = subprocess.run(
+            ['nmcli', '-t', 'connection', 'show', 'IoTWLan'],
+            capture_output=True, text=True, timeout=5
+        )
+        method, address, gateway, dns = 'auto', '', '', ''
+        for line in result.stdout.splitlines():
+            if line.startswith('ipv4.method:'):
+                method = line.split(':')[1].strip()
+            elif line.startswith('ipv4.addresses:'):
+                address = line.split(':')[1].strip()
+            elif line.startswith('ipv4.gateway:'):
+                val = line.split(':')[1].strip()
+                gateway = '' if val == '--' else val
+            elif line.startswith('ipv4.dns:'):
+                val = line.split(':')[1].strip()
+                dns = '' if val == '--' else val
+        return jsonify({"ok": True, "method": method, "address": address,
+                        "gateway": gateway, "dns": dns})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+@app.route('/api/network/ipconfig', methods=['POST'])
+def api_network_ipconfig_save():
+    try:
+        data    = request.get_json()
+        ssid    = data.get('ssid', 'IoTWLan')
+        method  = data.get('method', 'auto')
+
+        if method == 'auto':
+            subprocess.run(['sudo', 'nmcli', 'connection', 'modify', ssid,
+                           'ipv4.method', 'auto',
+                           'ipv4.addresses', '',
+                           'ipv4.gateway', '',
+                           'ipv4.dns', ''],
+                          capture_output=True, timeout=10)
+        else:
+            address = data.get('address', '')
+            gateway = data.get('gateway', '')
+            dns     = data.get('dns', '8.8.8.8,8.8.4.4')
+            if not address:
+                return jsonify({"ok": False, "error": "IP address required"})
+            subprocess.run(['sudo', 'nmcli', 'connection', 'modify', ssid,
+                           'ipv4.method', 'manual',
+                           'ipv4.addresses', address,
+                           'ipv4.gateway', gateway,
+                           'ipv4.dns', dns],
+                          capture_output=True, timeout=10)
+
+        # Reconnect to apply changes
+        result = subprocess.run(['sudo', 'nmcli', 'connection', 'up', ssid],
+                               capture_output=True, text=True, timeout=15)
+        if result.returncode == 0:
+            return jsonify({"ok": True})
+        else:
+            return jsonify({"ok": False, "error": result.stderr.strip()})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
