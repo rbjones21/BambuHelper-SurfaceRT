@@ -763,6 +763,32 @@ def api_network_ipconfig_save():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
+@app.route('/api/system/timezone', methods=['GET'])
+def api_system_timezone_get():
+    try:
+        result = subprocess.run(['timedatectl', 'show', '--property=Timezone'],
+                               capture_output=True, text=True, timeout=5)
+        tz = result.stdout.strip().split('=')[1] if '=' in result.stdout else 'UTC'
+        return jsonify({"ok": True, "timezone": tz})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+@app.route('/api/system/timezone', methods=['POST'])
+def api_system_timezone_set():
+    try:
+        data = request.get_json()
+        tz   = data.get('timezone', '').strip()
+        if not tz:
+            return jsonify({"ok": False, "error": "Timezone required"})
+        result = subprocess.run(['sudo', 'timedatectl', 'set-timezone', tz],
+                               capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            return jsonify({"ok": True})
+        else:
+            return jsonify({"ok": False, "error": result.stderr.strip()})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------

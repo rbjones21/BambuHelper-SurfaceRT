@@ -267,6 +267,46 @@
 <div class="card">
   <div class="card-hdr collapsed" onclick="toggleCard(this)"><h2>System</h2><span class="chev">▼</span></div>
    <div class="card-body hidden">
+    <!-- Timezone -->
+    <div class="field-row" style="margin-bottom:16px">
+      <label>Timezone</label>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <select id="sys-tz" style="flex:1;min-width:200px">
+          <optgroup label="US & Canada">
+            <option value="America/New_York">Eastern (New York)</option>
+            <option value="America/Chicago">Central (Chicago)</option>
+            <option value="America/Denver">Mountain (Denver)</option>
+            <option value="America/Los_Angeles">Pacific (Los Angeles)</option>
+            <option value="America/Anchorage">Alaska</option>
+            <option value="Pacific/Honolulu">Hawaii</option>
+            <option value="America/Phoenix">Arizona (no DST)</option>
+          </optgroup>
+          <optgroup label="Europe">
+            <option value="Europe/London">London (GMT/BST)</option>
+            <option value="Europe/Paris">Paris/Berlin/Rome (CET)</option>
+            <option value="Europe/Helsinki">Helsinki/Athens (EET)</option>
+            <option value="Europe/Moscow">Moscow</option>
+          </optgroup>
+          <optgroup label="Asia/Pacific">
+            <option value="Asia/Dubai">Dubai (GST)</option>
+            <option value="Asia/Kolkata">India (IST)</option>
+            <option value="Asia/Shanghai">China (CST)</option>
+            <option value="Asia/Tokyo">Japan (JST)</option>
+            <option value="Asia/Seoul">Korea (KST)</option>
+            <option value="Australia/Sydney">Sydney (AEST)</option>
+            <option value="Pacific/Auckland">New Zealand (NZST)</option>
+          </optgroup>
+          <optgroup label="Other">
+            <option value="UTC">UTC</option>
+            <option value="America/Sao_Paulo">São Paulo (BRT)</option>
+            <option value="America/Toronto">Toronto (ET)</option>
+            <option value="America/Vancouver">Vancouver (PT)</option>
+          </optgroup>
+        </select>
+        <button class="sys-btn" onclick="saveTimezone()">Apply</button>
+      </div>
+      <div id="sys-tz-current" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+    </div>
     <div class="field-row">
       <label>Device</label>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -458,7 +498,7 @@ async function init() {
     updateStats();
     setInterval(refreshState, 4000);
   } catch(e) { showToast('Could not connect to server','error'); }
-  loadNetworkStatus();
+  loadNetworkStatus();loadTimezone();
 }
 
 async function refreshState() {
@@ -717,6 +757,41 @@ async function saveIPConfig() {
     }
   } catch(e) {
     showToast('Failed to apply settings', 'error');
+  }
+}
+
+async function loadTimezone() {
+  try {
+    const res  = await fetch('/api/system/timezone');
+    const data = await res.json();
+    if (data.ok) {
+      const sel = document.getElementById('sys-tz');
+      // Try to select current timezone
+      for (let opt of sel.options) {
+        if (opt.value === data.timezone) { opt.selected = true; break; }
+      }
+      document.getElementById('sys-tz-current').textContent = `Current: ${data.timezone}`;
+    }
+  } catch(e) {}
+}
+
+async function saveTimezone() {
+  const tz = document.getElementById('sys-tz').value;
+  try {
+    const res  = await fetch('/api/system/timezone', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({timezone: tz})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(`Timezone set to ${tz}`, 'success');
+      document.getElementById('sys-tz-current').textContent = `Current: ${tz}`;
+    } else {
+      showToast(data.error || 'Failed to set timezone', 'error');
+    }
+  } catch(e) {
+    showToast('Failed', 'error');
   }
 }
 
