@@ -6,97 +6,252 @@
 <title>BambuHelperRT — Settings</title>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
+  /* ── Base variables & reset ── */
   :root {
-    --bg:#0d1117;--panel:#161b22;--border:#21262d;--accent:#00d4ff;
-    --green:#00cc66;--red:#ff3355;--yellow:#ffcc00;--text:#e6edf3;
-    --muted:#7d8590;--input-bg:#0d1117;--hover:#1f2937;
+    --bg:       #0d1117;
+    --panel:    #161b22;
+    --border:   #21262d;
+    --accent:   #00d4ff;
+    --green:    #00cc66;
+    --red:      #ff3355;
+    --yellow:   #ffcc00;
+    --text:     #e6edf3;
+    --muted:    #7d8590;
+    --input-bg: #0d1117;
+    --hover:    #1f2937;
   }
-  *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif;min-height:100vh;-webkit-tap-highlight-color:transparent;}
-  header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
-  .logo{font-size:20px;font-weight:700;color:var(--accent);letter-spacing:2px;}
-  .logo em{color:var(--text);font-style:normal;}
-  .nav-btn{font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);text-decoration:none;border:1px solid var(--border);padding:5px 12px;border-radius:5px;}
-  .page{max-width:620px;margin:0 auto;padding:16px 14px 60px;}
-  .page-title{font-size:24px;font-weight:700;margin-bottom:2px;}
-  .page-sub{font-size:13px;color:var(--muted);margin-bottom:20px;}
-  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;overflow:hidden;}
-  .card-hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;}
-  .card-hdr h2{font-size:15px;font-weight:700;letter-spacing:1px;color:var(--accent);}
-  .card-hdr .chev{color:var(--muted);font-size:11px;transition:transform 0.2s;}
-  .card-hdr.collapsed .chev{transform:rotate(-90deg);}
-  .card-body{padding:16px;}
-  .card-body.hidden{display:none;}
-  .tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;}
-  .tab{padding:9px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:600;cursor:pointer;letter-spacing:1px;transition:all 0.15s;}
-  .tab.active{background:var(--accent);border-color:var(--accent);color:#000;}
-  .status-row{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;background:rgba(255,255,255,0.03);border:1px solid var(--border);margin-bottom:14px;}
-  .sdot{width:7px;height:7px;border-radius:50%;background:var(--muted);}
-  .sdot.connected{background:var(--green);box-shadow:0 0 5px var(--green);}
-  .stxt{font-size:13px;font-weight:600;}
-  .stxt.connected{color:var(--green);}
-  .stxt.disconnected{color:var(--muted);}
-  .field{margin-bottom:12px;}
-  .field label{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;letter-spacing:1px;text-transform:uppercase;}
-  .field input[type=text],.field input[type=number],.field select,.field textarea{width:100%;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:13px;padding:9px 11px;outline:none;transition:border-color 0.15s;appearance:none;}
-  .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent);}
-  .field textarea{resize:vertical;min-height:70px;}
-  .field .hint{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4;}
-  .field .hint a{color:var(--accent);text-decoration:none;}
-  .slider-row{display:flex;align-items:center;gap:10px;}
-  .slider-row input[type=range]{flex:1;accent-color:var(--accent);}
-  .slider-val{font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--text);min-width:32px;text-align:right;}
-  .check-row{display:flex;align-items:center;gap:10px;padding:6px 0;cursor:pointer;}
-  .check-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);cursor:pointer;}
-  .check-row span{font-size:13px;color:var(--text);}
-  .token-box{background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.15);border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:12px;line-height:1.6;color:var(--muted);}
-  .token-box strong{color:var(--text);}
-  .token-box ol{padding-left:14px;margin-top:4px;}
-  .token-box a{color:var(--accent);text-decoration:none;}
-  .sel-wrap{position:relative;}
-  .sel-wrap::after{content:'▾';position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;}
-  .sel-wrap select{padding-right:28px;}
-  .btn{width:100%;padding:11px;border-radius:6px;border:none;font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;cursor:pointer;text-transform:uppercase;transition:opacity 0.15s;margin-top:6px;}
-  .btn:active{opacity:0.8;}
-  .btn-primary{background:var(--accent);color:#000;}
-  .btn-danger{background:var(--red);color:#fff;}
-  .btn-success{background:var(--green);color:#000;}
-  .live-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);}
-  .si{display:flex;justify-content:space-between;align-items:center;}
-  .si .k{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;}
-  .si .v{font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--text);}
-  .sec-title{font-size:12px;font-weight:700;color:var(--accent);letter-spacing:1px;text-transform:uppercase;margin:16px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border);}
-  .sec-title:first-child{margin-top:0;}
-  .themes{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;}
-  .theme-btn{padding:5px 14px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:600;cursor:pointer;letter-spacing:1px;transition:all 0.15s;}
-  .theme-btn:hover,.theme-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(0,212,255,0.08);}
-  .color-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
-  .color-row .clbl{font-size:11px;color:var(--muted);min-width:80px;text-transform:uppercase;letter-spacing:0.5px;}
-  .color-row input[type=color]{width:36px;height:28px;border:1px solid var(--border);border-radius:4px;background:transparent;cursor:pointer;padding:2px;}
-  .gauge-section{background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px;}
-  .gs-title{font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;letter-spacing:1px;}
-  .gc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
-  .gc-item{display:flex;flex-direction:column;align-items:center;gap:3px;}
-  .gc-item label{font-size:10px;color:var(--muted);letter-spacing:0.5px;}
-  .gc-item input[type=color]{width:100%;height:26px;border:1px solid var(--border);border-radius:4px;background:transparent;cursor:pointer;padding:2px;}
-  #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(70px);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 20px;font-size:13px;font-weight:600;color:var(--text);z-index:999;transition:transform 0.3s;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.5);}
-  #toast.show{transform:translateX(-50%) translateY(0);}
-  #toast.success{border-color:var(--green);color:var(--green);}
-  #toast.error{border-color:var(--red);color:var(--red);}
-  .sys-btn { padding: 10px 20px; border-radius: 6px; border: 1px solid var(--bdr); background: rgba(255,255,255,0.05); color: var(--text); font-family: 'Rajdhani', sans-serif; font-size: 16px; font-weight: 600; cursor: pointer; letter-spacing: 1px; transition: all 0.15s; }
-  .sys-btn:hover { background: rgba(255,255,255,0.12); }
-  .sys-btn.shutdown { border-color: rgba(255,50,50,0.4); color: #ff4444; }
-  .sys-btn.shutdown:hover { background: rgba(255,50,50,0.1); }
-  .sys-btn.terminal { border-color: rgba(0,200,100,0.4); color: #00c864; }
-  .sys-btn.terminal:hover { background: rgba(0,200,100,0.1); }
-  .net-item { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; border-radius:6px; background:rgba(255,255,255,0.03); border:1px solid var(--border); margin-bottom:6px; cursor:pointer; transition:background 0.15s; }
-  .net-item:hover { background:rgba(255,255,255,0.07); }
-  .net-item.active-net { border-color:var(--green); }
-  .net-ssid { font-size:14px; font-weight:600; color:var(--text); }
-  .net-meta { font-size:11px; color:var(--muted); margin-top:2px; }
-  .net-signal { font-size:18px; color: var(--accent); }
-  .net-forget { font-size:11px; color:var(--red); padding:3px 8px; border:1px solid var(--red); border-radius:4px; background:transparent; cursor:pointer; opacity:0.7; }
-  .net-forget:hover { opacity:1; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    min-height: 100vh;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo    { font-size: 20px; font-weight: 700; color: var(--accent); letter-spacing: 2px; }
+  .logo em { color: var(--text); font-style: normal; }
+  .nav-btn {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    border: 1px solid var(--border);
+    padding: 5px 12px;
+    border-radius: 5px;
+  }
+
+  /* ── Page layout ── */
+  .page       { max-width: 620px; margin: 0 auto; padding: 16px 14px 60px; }
+  .page-title { font-size: 24px; font-weight: 700; margin-bottom: 2px; }
+  .page-sub   { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+
+  /* ── Cards ── */
+  .card     { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 14px; overflow: hidden; }
+  .card-hdr { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; }
+  .card-hdr h2        { font-size: 15px; font-weight: 700; letter-spacing: 1px; color: var(--accent); }
+  .card-hdr .chev     { color: var(--muted); font-size: 11px; transition: transform 0.2s; }
+  .card-hdr.collapsed .chev { transform: rotate(-90deg); }
+  .card-body        { padding: 16px; }
+  .card-body.hidden { display: none; }
+
+  /* ── Tabs ── */
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .tab {
+    padding: 9px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.15s;
+  }
+  .tab.active { background: var(--accent); border-color: var(--accent); color: #000; }
+
+  /* ── Status row ── */
+  .status-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); margin-bottom: 14px; }
+  .sdot               { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+  .sdot.connected     { background: var(--green); box-shadow: 0 0 5px var(--green); }
+  .stxt               { font-size: 13px; font-weight: 600; }
+  .stxt.connected     { color: var(--green); }
+  .stxt.disconnected  { color: var(--muted); }
+
+  /* ── Form fields ── */
+  .field       { margin-bottom: 12px; }
+  .field label { display: block; font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 5px; letter-spacing: 1px; text-transform: uppercase; }
+  .field input[type=text],
+  .field input[type=number],
+  .field select,
+  .field textarea {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    padding: 9px 11px;
+    outline: none;
+    transition: border-color 0.15s;
+    appearance: none;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
+  .field textarea  { resize: vertical; min-height: 70px; }
+  .field .hint     { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+  .field .hint a   { color: var(--accent); text-decoration: none; }
+  .field-row       { margin-bottom: 12px; }
+  .field-row label { display: block; font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 5px; letter-spacing: 1px; text-transform: uppercase; }
+
+  /* ── Slider, checkbox ── */
+  .slider-row                  { display: flex; align-items: center; gap: 10px; }
+  .slider-row input[type=range]{ flex: 1; accent-color: var(--accent); }
+  .slider-val                  { font-family: 'Share Tech Mono', monospace; font-size: 13px; color: var(--text); min-width: 32px; text-align: right; }
+  .check-row                   { display: flex; align-items: center; gap: 10px; padding: 6px 0; cursor: pointer; }
+  .check-row input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+  .check-row span              { font-size: 13px; color: var(--text); }
+
+  /* ── Token info box ── */
+  .token-box    { background: rgba(0,212,255,0.05); border: 1px solid rgba(0,212,255,0.15); border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; font-size: 12px; line-height: 1.6; color: var(--muted); }
+  .token-box strong { color: var(--text); }
+  .token-box ol { padding-left: 14px; margin-top: 4px; }
+  .token-box a  { color: var(--accent); text-decoration: none; }
+
+  /* ── Select wrapper ── */
+  .sel-wrap         { position: relative; }
+  .sel-wrap::after  { content: '▾'; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+  .sel-wrap select  { padding-right: 28px; }
+
+  /* ── Buttons ── */
+  .btn {
+    width: 100%;
+    padding: 11px;
+    border-radius: 6px;
+    border: none;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: opacity 0.15s;
+    margin-top: 6px;
+  }
+  .btn:active      { opacity: 0.8; }
+  .btn-primary     { background: var(--accent); color: #000; }
+  .btn-danger      { background: var(--red);    color: #fff; }
+  .btn-success     { background: var(--green);  color: #000; }
+  .btn-outline     { background: transparent;   color: var(--text); border: 1px solid var(--border); }
+
+  /* ── System buttons ── */
+  .sys-btn {
+    padding: 10px 20px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.05);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.15s;
+  }
+  .sys-btn:hover            { background: rgba(255,255,255,0.12); }
+  .sys-btn.shutdown         { border-color: rgba(255,50,50,0.4);   color: #ff4444; }
+  .sys-btn.shutdown:hover   { background: rgba(255,50,50,0.1); }
+  .sys-btn.terminal         { border-color: rgba(0,200,100,0.4);   color: #00c864; }
+  .sys-btn.terminal:hover   { background: rgba(0,200,100,0.1); }
+
+  /* ── Live stats ── */
+  .live-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .si         { display: flex; justify-content: space-between; align-items: center; }
+  .si .k      { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .si .v      { font-family: 'Share Tech Mono', monospace; font-size: 13px; color: var(--text); }
+
+  /* ── Section titles ── */
+  .sec-title            { font-size: 12px; font-weight: 700; color: var(--accent); letter-spacing: 1px; text-transform: uppercase; margin: 16px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .sec-title:first-child{ margin-top: 0; }
+
+  /* ── Theme presets ── */
+  .themes    { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .theme-btn {
+    padding: 5px 14px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.15s;
+  }
+  .theme-btn:hover, .theme-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,0.08); }
+
+  /* ── Color pickers ── */
+  .color-row          { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .color-row .clbl    { font-size: 11px; color: var(--muted); min-width: 80px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .color-row input[type=color] { width: 36px; height: 28px; border: 1px solid var(--border); border-radius: 4px; background: transparent; cursor: pointer; padding: 2px; }
+
+  /* ── Gauge sections ── */
+  .gauge-section { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; }
+  .gs-title      { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 8px; letter-spacing: 1px; }
+  .gc-grid       { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
+  .gc-item       { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .gc-item label { font-size: 10px; color: var(--muted); letter-spacing: 0.5px; }
+  .gc-item input[type=color] { width: 100%; height: 26px; border: 1px solid var(--border); border-radius: 4px; background: transparent; cursor: pointer; padding: 2px; }
+
+  /* ── Network list ── */
+  .net-item           { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); margin-bottom: 6px; cursor: pointer; transition: background 0.15s; }
+  .net-item:hover     { background: rgba(255,255,255,0.07); }
+  .net-item.active-net{ border-color: var(--green); }
+  .net-ssid           { font-size: 14px; font-weight: 600; color: var(--text); }
+  .net-meta           { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .net-signal         { font-size: 18px; color: var(--accent); }
+  .net-forget         { font-size: 11px; color: var(--red); padding: 3px 8px; border: 1px solid var(--red); border-radius: 4px; background: transparent; cursor: pointer; opacity: 0.7; }
+  .net-forget:hover   { opacity: 1; }
+
+  /* ── Toast notification ── */
+  #toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(70px);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    z-index: 999;
+    transition: transform 0.3s;
+    white-space: nowrap;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  }
+  #toast.show    { transform: translateX(-50%) translateY(0); }
+  #toast.success { border-color: var(--green); color: var(--green); }
+  #toast.error   { border-color: var(--red);   color: var(--red); }
 </style>
 </head>
 <body>
@@ -104,14 +259,15 @@
   <div class="logo">BambuHelper<em>RT</em></div>
   <a href="/" class="nav-btn">◀ Dashboard</a>
 </header>
+
 <div class="page">
   <div class="page-title">Settings</div>
   <div class="page-sub">Configure printers, display and gauge colors</div>
 
-  <!-- Printer Settings -->
+  <!-- ── Printer Settings ── -->
   <div class="card">
-    <div class="card-hdr" onclick="toggleCard(this)"><h2>Printer Settings</h2><span class="chev">▼</span></div>
-    <div class="card-body">
+    <div class="card-hdr collapsed" onclick="toggleCard(this)"><h2>Printer Settings</h2><span class="chev">▼</span></div>
+    <div class="card-body hidden">
       <div class="tabs">
         <button class="tab active" onclick="switchPrinter(0,this)">Printer 1</button>
         <button class="tab"        onclick="switchPrinter(1,this)">Printer 2</button>
@@ -122,17 +278,33 @@
       </div>
       <div class="field">
         <label>Connection Mode</label>
-        <div class="sel-wrap"><select id="mode-sel" onchange="onModeChange()">
-          <option value="lan">LAN Mode (Developer Mode required)</option>
-          <option value="cloud">Bambu Cloud (All printers)</option>
-        </select></div>
+        <div class="sel-wrap">
+          <select id="mode-sel" onchange="onModeChange()">
+            <option value="lan">LAN Mode (Developer Mode required)</option>
+            <option value="cloud">Bambu Cloud (All printers)</option>
+          </select>
+        </div>
       </div>
+      <!-- LAN fields -->
       <div id="lan-fields">
         <div class="field"><label>Printer IP Address</label><input type="text" id="f-ip" placeholder="192.168.1.100"></div>
-        <div class="field"><label>LAN Access Code</label><input type="text" id="f-code" placeholder="8-character code"><div class="hint">Settings → Network → LAN Access Code on the printer</div></div>
+        <div class="field">
+          <label>LAN Access Code</label>
+          <input type="text" id="f-code" placeholder="8-character code">
+          <div class="hint">Settings → Network → LAN Access Code on the printer</div>
+        </div>
       </div>
+      <!-- Cloud fields -->
       <div id="cloud-fields" style="display:none">
-        <div class="field"><label>Server Region</label><div class="sel-wrap"><select id="f-region"><option value="us">Americas (US)</option><option value="cn">China (CN)</option></select></div></div>
+        <div class="field">
+          <label>Server Region</label>
+          <div class="sel-wrap">
+            <select id="f-region">
+              <option value="us">Americas (US)</option>
+              <option value="cn">China (CN)</option>
+            </select>
+          </div>
+        </div>
         <div class="token-box">
           <strong>How to get your token:</strong>
           <ol>
@@ -143,7 +315,11 @@
           </ol>
         </div>
         <div class="field"><label>Access Token</label><textarea id="f-token" placeholder="Paste your Bambu Cloud token here..."></textarea></div>
-        <div class="field"><label>Bambu User ID</label><input type="text" id="f-uid" placeholder="Numeric user ID (e.g. 178540148)"><div class="hint">Found at MakerWorld profile API — look for uid field</div></div>
+        <div class="field">
+          <label>Bambu User ID</label>
+          <input type="text" id="f-uid" placeholder="Numeric user ID (e.g. 178540148)">
+          <div class="hint">Found at MakerWorld profile API — look for uid field</div>
+        </div>
       </div>
       <div class="field"><label>Printer Serial Number</label><input type="text" id="f-serial" placeholder="e.g. 31B8AP5B2600220"></div>
       <div class="field"><label>Printer Name</label><input type="text" id="f-name" placeholder="e.g. H2D"></div>
@@ -151,28 +327,28 @@
       <button class="btn btn-primary" onclick="savePrinter()">Save Printer Settings</button>
       <button class="btn btn-danger"  onclick="clearToken()">Clear Token</button>
       <div class="live-stats">
-        <div class="si"><span class="k">State</span><span class="v" id="s-state">--</span></div>
+        <div class="si"><span class="k">State</span>   <span class="v" id="s-state">--</span></div>
         <div class="si"><span class="k">Progress</span><span class="v" id="s-prog">--%</span></div>
-        <div class="si"><span class="k">Nozzle</span><span class="v" id="s-nozzle">--°C</span></div>
-        <div class="si"><span class="k">Bed</span><span class="v" id="s-bed">--°C</span></div>
+        <div class="si"><span class="k">Nozzle</span> <span class="v" id="s-nozzle">--°C</span></div>
+        <div class="si"><span class="k">Bed</span>    <span class="v" id="s-bed">--°C</span></div>
       </div>
     </div>
   </div>
 
-  <!-- Display Settings -->
+  <!-- ── Display Settings ── -->
   <div class="card">
-    <div class="card-hdr" onclick="toggleCard(this)"><h2>Display</h2><span class="chev">▼</span></div>
-    <div class="card-body">
+    <div class="card-hdr collapsed" onclick="toggleCard(this)"><h2>Display</h2><span class="chev">▼</span></div>
+    <div class="card-body hidden">
       <div class="sec-title">Screen</div>
       <div class="field">
         <label>Brightness</label>
         <div class="slider-row">
-          <input type="range" id="d-bright" min="10" max="254" value="128" 
+          <input type="range" id="d-bright" min="10" max="254" value="128"
             oninput="document.getElementById('d-bval').textContent=this.value; applyBrightness(this.value)">
           <span class="slider-val" id="d-bval">200</span>
         </div>
       </div>
-         <div class="field">
+      <div class="field">
         <label>Display off after print complete (minutes, 0 = never)</label>
         <input type="number" id="d-timeout" value="3" min="0" max="60">
       </div>
@@ -206,158 +382,212 @@
     </div>
   </div>
 
-<!-- Network -->
-<div class="card">
-  <div class="card-hdr collapsed" onclick="toggleCard(this)"><h2>Network</h2><span class="chev">▼</span></div>
-  <div class="card-body hidden">
-    <!-- Current connection -->
-    <div class="status-row" id="net-current">
-      <div class="sdot" id="net-sdot"></div>
-      <span class="stxt" id="net-stxt">Loading...</span>
-    </div>
-
-    <!-- Scan button -->
-    <button class="btn btn-outline" onclick="scanNetworks()" id="net-scan-btn" style="margin-bottom:12px">
-      ⟳ Scan for Networks
-    </button>
-
-    <!-- Network list -->
-    <div id="net-list"></div>
-
-    <!-- Connect form -->
-    <div id="net-connect-form" style="display:none">
-      <div class="field" style="margin-top:12px">
-        <label>Connecting to: <strong id="net-connect-ssid"></strong></label>
-        <input type="password" id="net-password" placeholder="Password (leave blank if open network)">
+  <!-- ── Network Settings ── -->
+  <div class="card">
+    <div class="card-hdr collapsed" onclick="toggleCard(this)"><h2>Network</h2><span class="chev">▼</span></div>
+    <div class="card-body hidden">
+      <!-- Current connection status -->
+      <div class="status-row" id="net-current">
+        <div class="sdot" id="net-sdot"></div>
+        <span class="stxt" id="net-stxt">Loading...</span>
       </div>
-      <div style="display:flex;gap:10px;margin-top:10px">
-        <button class="btn btn-success" onclick="connectNetwork()">Connect</button>
-        <button class="btn btn-outline" onclick="cancelConnect()">Cancel</button>
-      </div>
-    </div>
-    <!-- IP Configuration -->
-    <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px">
-      <div class="field-row" style="margin-bottom:10px">
-        <label>IP Configuration</label>
-        <select id="net-ip-method" onchange="toggleStaticFields()">
-          <option value="auto">DHCP (Automatic)</option>
-          <option value="manual">Static IP</option>
-        </select>
-      </div>
-      <div id="net-static-fields" style="display:none">
-        <div class="field" style="margin-bottom:8px">
-          <label>IP Address (e.g. 192.168.1.100/24)</label>
-          <input type="text" id="net-ip-address" placeholder="10.0.0.100/24">
+
+      <!-- WiFi scan -->
+      <button class="btn btn-outline" onclick="scanNetworks()" id="net-scan-btn" style="margin-bottom:12px">
+        ⟳ Scan for Networks
+      </button>
+      <div id="net-list"></div>
+
+      <!-- Connect form (shown when a network is tapped) -->
+      <div id="net-connect-form" style="display:none">
+        <div class="field" style="margin-top:12px">
+          <label>Connecting to: <strong id="net-connect-ssid"></strong></label>
+          <input type="password" id="net-password" placeholder="Password (leave blank if open network)">
         </div>
-        <div class="field" style="margin-bottom:8px">
-          <label>Gateway</label>
-          <input type="text" id="net-ip-gateway" placeholder="10.0.0.1">
-        </div>
-        <div class="field" style="margin-bottom:8px">
-          <label>DNS Servers (comma separated)</label>
-          <input type="text" id="net-ip-dns" placeholder="8.8.8.8,8.8.4.4">
+        <div style="display:flex;gap:10px;margin-top:10px">
+          <button class="btn btn-success" onclick="connectNetwork()">Connect</button>
+          <button class="btn btn-outline" onclick="cancelConnect()">Cancel</button>
         </div>
       </div>
-      <button class="btn btn-success" onclick="saveIPConfig()" style="margin-top:8px">Apply IP Settings</button>
+
+      <!-- IP configuration (DHCP / Static) -->
+      <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px">
+        <div class="field-row" style="margin-bottom:10px">
+          <label>IP Configuration</label>
+          <select id="net-ip-method" onchange="toggleStaticFields()">
+            <option value="auto">DHCP (Automatic)</option>
+            <option value="manual">Static IP</option>
+          </select>
+        </div>
+        <div id="net-static-fields" style="display:none">
+          <div class="field" style="margin-bottom:8px">
+            <label>IP Address (e.g. 192.168.1.100/24)</label>
+            <input type="text" id="net-ip-address" placeholder="10.0.0.100/24">
+          </div>
+          <div class="field" style="margin-bottom:8px">
+            <label>Gateway</label>
+            <input type="text" id="net-ip-gateway" placeholder="10.0.0.1">
+          </div>
+          <div class="field" style="margin-bottom:8px">
+            <label>DNS Servers (comma separated)</label>
+            <input type="text" id="net-ip-dns" placeholder="8.8.8.8,8.8.4.4">
+          </div>
+        </div>
+        <button class="btn btn-success" onclick="saveIPConfig()" style="margin-top:8px">Apply IP Settings</button>
+      </div>
     </div>
   </div>
-</div>  
 
-<!-- System -->
-<div class="card">
-  <div class="card-hdr collapsed" onclick="toggleCard(this)"><h2>System</h2><span class="chev">▼</span></div>
-   <div class="card-body hidden">
-    <!-- Timezone -->
-    <div class="field-row" style="margin-bottom:16px">
-      <label>Timezone</label>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <select id="sys-tz" style="flex:1;min-width:200px">
-          <optgroup label="US & Canada">
-            <option value="America/New_York">Eastern (New York)</option>
-            <option value="America/Chicago">Central (Chicago)</option>
-            <option value="America/Denver">Mountain (Denver)</option>
-            <option value="America/Los_Angeles">Pacific (Los Angeles)</option>
-            <option value="America/Anchorage">Alaska</option>
-            <option value="Pacific/Honolulu">Hawaii</option>
-            <option value="America/Phoenix">Arizona (no DST)</option>
-          </optgroup>
-          <optgroup label="Europe">
-            <option value="Europe/London">London (GMT/BST)</option>
-            <option value="Europe/Paris">Paris/Berlin/Rome (CET)</option>
-            <option value="Europe/Helsinki">Helsinki/Athens (EET)</option>
-            <option value="Europe/Moscow">Moscow</option>
-          </optgroup>
-          <optgroup label="Asia/Pacific">
-            <option value="Asia/Dubai">Dubai (GST)</option>
-            <option value="Asia/Kolkata">India (IST)</option>
-            <option value="Asia/Shanghai">China (CST)</option>
-            <option value="Asia/Tokyo">Japan (JST)</option>
-            <option value="Asia/Seoul">Korea (KST)</option>
-            <option value="Australia/Sydney">Sydney (AEST)</option>
-            <option value="Pacific/Auckland">New Zealand (NZST)</option>
-          </optgroup>
-          <optgroup label="Other">
-            <option value="UTC">UTC</option>
-            <option value="America/Sao_Paulo">São Paulo (BRT)</option>
-            <option value="America/Toronto">Toronto (ET)</option>
-            <option value="America/Vancouver">Vancouver (PT)</option>
-          </optgroup>
-        </select>
-        <button class="sys-btn" onclick="saveTimezone()">Apply</button>
+  <!-- ── System Settings ── -->
+  <div class="card">
+    <div class="card-hdr collapsed" onclick="toggleCard(this)"><h2>System</h2><span class="chev">▼</span></div>
+    <div class="card-body hidden">
+      <!-- Timezone selector -->
+      <div class="field-row" style="margin-bottom:16px">
+        <label>Timezone</label>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <select id="sys-tz" style="flex:1;min-width:200px">
+            <optgroup label="US & Canada">
+              <option value="America/New_York">Eastern (New York)</option>
+              <option value="America/Chicago">Central (Chicago)</option>
+              <option value="America/Denver">Mountain (Denver)</option>
+              <option value="America/Los_Angeles">Pacific (Los Angeles)</option>
+              <option value="America/Anchorage">Alaska</option>
+              <option value="Pacific/Honolulu">Hawaii</option>
+              <option value="America/Phoenix">Arizona (no DST)</option>
+            </optgroup>
+            <optgroup label="Europe">
+              <option value="Europe/London">London (GMT/BST)</option>
+              <option value="Europe/Paris">Paris/Berlin/Rome (CET)</option>
+              <option value="Europe/Helsinki">Helsinki/Athens (EET)</option>
+              <option value="Europe/Moscow">Moscow</option>
+            </optgroup>
+            <optgroup label="Asia/Pacific">
+              <option value="Asia/Dubai">Dubai (GST)</option>
+              <option value="Asia/Kolkata">India (IST)</option>
+              <option value="Asia/Shanghai">China (CST)</option>
+              <option value="Asia/Tokyo">Japan (JST)</option>
+              <option value="Asia/Seoul">Korea (KST)</option>
+              <option value="Australia/Sydney">Sydney (AEST)</option>
+              <option value="Pacific/Auckland">New Zealand (NZST)</option>
+            </optgroup>
+            <optgroup label="Other">
+              <option value="UTC">UTC</option>
+              <option value="America/Sao_Paulo">São Paulo (BRT)</option>
+              <option value="America/Toronto">Toronto (ET)</option>
+              <option value="America/Vancouver">Vancouver (PT)</option>
+            </optgroup>
+          </select>
+          <button class="sys-btn" onclick="saveTimezone()">Apply</button>
+        </div>
+        <div id="sys-tz-current" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
       </div>
-      <div id="sys-tz-current" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
-    </div>
-    <div class="field-row">
-      <label>Device</label>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="sys-btn" onclick="sysAction('reboot')">↺ Reboot</button>
-        <button class="sys-btn shutdown" onclick="sysAction('shutdown')">⏻ Shutdown</button>
-        <button class="sys-btn terminal" onclick="sysAction('terminal')">⌨ Terminal</button>
+      <!-- Device controls -->
+      <div class="field-row">
+        <label>Device</label>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="sys-btn"          onclick="sysAction('reboot')">↺ Reboot</button>
+          <button class="sys-btn shutdown" onclick="sysAction('shutdown')">⏻ Shutdown</button>
+          <button class="sys-btn terminal" onclick="sysAction('terminal')">⌨ Terminal</button>
+        </div>
       </div>
+      <div id="sys-msg" style="font-size:13px;color:var(--muted);margin-top:8px;display:none"></div>
     </div>
-    <div id="sys-msg" style="font-size:13px;color:var(--muted);margin-top:8px;display:none"></div>
   </div>
-</div>
 
-  <!-- About -->
+  <!-- ── About ── -->
   <div class="card">
     <div class="card-hdr collapsed" onclick="toggleCard(this)"><h2>About</h2><span class="chev">▼</span></div>
     <div class="card-body hidden">
       <p style="font-size:13px;color:var(--muted);line-height:1.6">
-        BambuHelperRT — Using a SurfaceRT running Debian 12 to Monitor Bambu printers, this is a remake taking inspiration from <a href="https://github.com/Keralots/BambuHelper" style="color:var(--accent)">Keralots/BambuHelper</a><br><br>
+        BambuHelperRT — Using a SurfaceRT running Debian 12 to Monitor Bambu printers, this is a remake taking inspiration from
+        <a href="https://github.com/Keralots/BambuHelper" style="color:var(--accent)">Keralots/BambuHelper</a><br><br>
         For info on running Debian on SurfaceRT: <a href="https://open-rt.gitbook.io/open-surfacert/surface-rt/linux" style="color:var(--accent)">open-rt.gitbook.io</a><br><br>
         Project repo: <a href="https://github.com/rbjones21/BambuHelper-SurfaceRT" style="color:var(--accent)">rbjones21/BambuHelper-SurfaceRT</a>
       </p>
     </div>
   </div>
 </div>
+
 <div id="toast"></div>
 
 <script>
+// ── Gauge & theme definitions ──────────────────────────────────────────────
 const GAUGES = [
-  {id:'progress', label:'Progress',    arc:'#00c8ff', glabel:'#00c8ff', value:'#ffffff'},
-  {id:'nozzle',   label:'Nozzle',      arc:'#ff4444', glabel:'#ff6666', value:'#ffffff'},
-  {id:'bed',      label:'Bed',         arc:'#ff9944', glabel:'#ffaa66', value:'#ffffff'},
-  {id:'fan_part', label:'Part Fan',    arc:'#00c8ff', glabel:'#00c8ff', value:'#ffffff'},
-  {id:'fan_aux',  label:'Aux Fan',     arc:'#44aaff', glabel:'#44aaff', value:'#ffffff'},
-  {id:'fan_cham', label:'Chamber Fan', arc:'#aa66ff', glabel:'#aa66ff', value:'#ffffff'},
+  { id:'progress', label:'Progress',    arc:'#00c8ff', glabel:'#00c8ff', value:'#ffffff' },
+  { id:'nozzle',   label:'Nozzle',      arc:'#ff4444', glabel:'#ff6666', value:'#ffffff' },
+  { id:'bed',      label:'Bed',         arc:'#ff9944', glabel:'#ffaa66', value:'#ffffff' },
+  { id:'fan_part', label:'Part Fan',    arc:'#00c8ff', glabel:'#00c8ff', value:'#ffffff' },
+  { id:'fan_aux',  label:'Aux Fan',     arc:'#44aaff', glabel:'#44aaff', value:'#ffffff' },
+  { id:'fan_cham', label:'Chamber Fan', arc:'#aa66ff', glabel:'#aa66ff', value:'#ffffff' },
 ];
 
 const THEMES = {
-  default:    {bg:'#0a0c0f',track:'#141820',progress:{arc:'#00c8ff',glabel:'#00c8ff',value:'#e8edf5'},nozzle:{arc:'#00c8ff',glabel:'#00c8ff',value:'#e8edf5'},bed:{arc:'#ff9944',glabel:'#ff9944',value:'#e8edf5'},fan_part:{arc:'#00c8ff',glabel:'#00c8ff',value:'#e8edf5'},fan_aux:{arc:'#44aaff',glabel:'#44aaff',value:'#e8edf5'},fan_cham:{arc:'#aa66ff',glabel:'#aa66ff',value:'#e8edf5'}},
-  bambu:      {bg:'#f0f2f4',track:'#dde1e7',progress:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'},nozzle:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'},bed:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'},fan_part:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'},fan_aux:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'},fan_cham:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'}},
-  mono_green: {bg:'#050f08',track:'#0a1a0e',progress:{arc:'#00ff66',glabel:'#00ff66',value:'#ccffdd'},nozzle:{arc:'#00ee55',glabel:'#00ee55',value:'#ccffdd'},bed:{arc:'#00dd44',glabel:'#00dd44',value:'#ccffdd'},fan_part:{arc:'#00ff66',glabel:'#00ff66',value:'#ccffdd'},fan_aux:{arc:'#00cc44',glabel:'#00cc44',value:'#ccffdd'},fan_cham:{arc:'#009933',glabel:'#009933',value:'#ccffdd'}},
-  neon:       {bg:'#080010',track:'#120020',progress:{arc:'#ff00ff',glabel:'#ff00ff',value:'#ffffff'},nozzle:{arc:'#ff0066',glabel:'#ff0066',value:'#ffffff'},bed:{arc:'#ff6600',glabel:'#ff6600',value:'#ffffff'},fan_part:{arc:'#00ffff',glabel:'#00ffff',value:'#ffffff'},fan_aux:{arc:'#aaff00',glabel:'#aaff00',value:'#ffffff'},fan_cham:{arc:'#ff00aa',glabel:'#ff00aa',value:'#ffffff'}},
-  warm:       {bg:'#0f0800',track:'#1a1000',progress:{arc:'#ffaa00',glabel:'#ffaa00',value:'#fff0cc'},nozzle:{arc:'#ff4400',glabel:'#ff6633',value:'#fff0cc'},bed:{arc:'#ff8800',glabel:'#ffaa44',value:'#fff0cc'},fan_part:{arc:'#ffcc00',glabel:'#ffcc00',value:'#fff0cc'},fan_aux:{arc:'#ff9900',glabel:'#ff9900',value:'#fff0cc'},fan_cham:{arc:'#cc5500',glabel:'#cc5500',value:'#fff0cc'}},
-  ocean:      {bg:'#000a14',track:'#001428',progress:{arc:'#00aaff',glabel:'#00aaff',value:'#cce8ff'},nozzle:{arc:'#0066ff',glabel:'#4488ff',value:'#cce8ff'},bed:{arc:'#00ccaa',glabel:'#00ddbb',value:'#cce8ff'},fan_part:{arc:'#0088ff',glabel:'#0088ff',value:'#cce8ff'},fan_aux:{arc:'#00bbcc',glabel:'#00bbcc',value:'#cce8ff'},fan_cham:{arc:'#0044aa',glabel:'#0044aa',value:'#cce8ff'}},
+  default:    { bg:'#0a0c0f', track:'#141820', progress:{arc:'#00c8ff',glabel:'#00c8ff',value:'#e8edf5'}, nozzle:{arc:'#00c8ff',glabel:'#00c8ff',value:'#e8edf5'}, bed:{arc:'#ff9944',glabel:'#ff9944',value:'#e8edf5'}, fan_part:{arc:'#00c8ff',glabel:'#00c8ff',value:'#e8edf5'}, fan_aux:{arc:'#44aaff',glabel:'#44aaff',value:'#e8edf5'}, fan_cham:{arc:'#aa66ff',glabel:'#aa66ff',value:'#e8edf5'} },
+  bambu:      { bg:'#f0f2f4', track:'#dde1e7', progress:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'}, nozzle:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'}, bed:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'}, fan_part:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'}, fan_aux:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'}, fan_cham:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'} },
+  mono_green: { bg:'#050f08', track:'#0a1a0e', progress:{arc:'#00ff66',glabel:'#00ff66',value:'#ccffdd'}, nozzle:{arc:'#00ee55',glabel:'#00ee55',value:'#ccffdd'}, bed:{arc:'#00dd44',glabel:'#00dd44',value:'#ccffdd'}, fan_part:{arc:'#00ff66',glabel:'#00ff66',value:'#ccffdd'}, fan_aux:{arc:'#00cc44',glabel:'#00cc44',value:'#ccffdd'}, fan_cham:{arc:'#009933',glabel:'#009933',value:'#ccffdd'} },
+  neon:       { bg:'#080010', track:'#120020', progress:{arc:'#ff00ff',glabel:'#ff00ff',value:'#ffffff'}, nozzle:{arc:'#ff0066',glabel:'#ff0066',value:'#ffffff'}, bed:{arc:'#ff6600',glabel:'#ff6600',value:'#ffffff'}, fan_part:{arc:'#00ffff',glabel:'#00ffff',value:'#ffffff'}, fan_aux:{arc:'#aaff00',glabel:'#aaff00',value:'#ffffff'}, fan_cham:{arc:'#ff00aa',glabel:'#ff00aa',value:'#ffffff'} },
+  warm:       { bg:'#0f0800', track:'#1a1000', progress:{arc:'#ffaa00',glabel:'#ffaa00',value:'#fff0cc'}, nozzle:{arc:'#ff4400',glabel:'#ff6633',value:'#fff0cc'}, bed:{arc:'#ff8800',glabel:'#ffaa44',value:'#fff0cc'}, fan_part:{arc:'#ffcc00',glabel:'#ffcc00',value:'#fff0cc'}, fan_aux:{arc:'#ff9900',glabel:'#ff9900',value:'#fff0cc'}, fan_cham:{arc:'#cc5500',glabel:'#cc5500',value:'#fff0cc'} },
+  ocean:      { bg:'#000a14', track:'#001428', progress:{arc:'#00aaff',glabel:'#00aaff',value:'#cce8ff'}, nozzle:{arc:'#0066ff',glabel:'#4488ff',value:'#cce8ff'}, bed:{arc:'#00ccaa',glabel:'#00ddbb',value:'#cce8ff'}, fan_part:{arc:'#0088ff',glabel:'#0088ff',value:'#cce8ff'}, fan_aux:{arc:'#00bbcc',glabel:'#00bbcc',value:'#cce8ff'}, fan_cham:{arc:'#0044aa',glabel:'#0044aa',value:'#cce8ff'} },
 };
 
+// ── State ──────────────────────────────────────────────────────────────────
+let currentIdx  = 0;
+let serverState = [];
+let configLoaded = false;
+let selectedSSID = null;
+let config = {
+  printers: [
+    { id:'printer1', name:'Printer 1', mode:'cloud', enabled:true },
+    { id:'printer2', name:'Printer 2', mode:'cloud', enabled:true },
+  ]
+};
+
+// ── Initialisation ─────────────────────────────────────────────────────────
+async function init() {
+  buildGaugeSections();
+  try {
+    const [cfgRes, stateRes] = await Promise.all([fetch('/api/config'), fetch('/api/state')]);
+    config       = await cfgRes.json();
+    configLoaded = true;
+    serverState  = await stateRes.json();
+    while (config.printers.length < 2)
+      config.printers.push({ id:`printer${config.printers.length+1}`, name:`Printer ${config.printers.length+1}`, mode:'lan', enabled:true });
+    loadPrinterForm(0);
+    loadDisplaySettings(config);
+    updateStats();
+    setInterval(refreshState, 4000);
+  } catch(e) {
+    showToast('Could not connect to server', 'error');
+  }
+  loadNetworkStatus();
+  loadTimezone();
+}
+
+async function refreshState() {
+  try { serverState = await (await fetch('/api/state')).json(); updateStats(); } catch(e) {}
+}
+
+// ── UI helpers ─────────────────────────────────────────────────────────────
+function toggleCard(hdr) {
+  hdr.classList.toggle('collapsed');
+  hdr.nextElementSibling.classList.toggle('hidden');
+}
+
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = `show ${type}`;
+  setTimeout(() => { t.className = type; }, 3000);
+}
+
+// ── Gauge / theme helpers ──────────────────────────────────────────────────
 function buildGaugeSections() {
   document.getElementById('gauge-sections').innerHTML = GAUGES.map(g => `
     <div class="gauge-section">
       <div class="gs-title">${g.label}</div>
       <div class="gc-grid">
-        <div class="gc-item"><label>Arc</label><input type="color" id="gc-${g.id}-arc"    value="${g.arc}"    oninput="clearTheme()"></div>
+        <div class="gc-item"><label>Arc</label>  <input type="color" id="gc-${g.id}-arc"    value="${g.arc}"    oninput="clearTheme()"></div>
         <div class="gc-item"><label>Label</label><input type="color" id="gc-${g.id}-glabel" value="${g.glabel}" oninput="clearTheme()"></div>
         <div class="gc-item"><label>Value</label><input type="color" id="gc-${g.id}-value"  value="${g.value}"  oninput="clearTheme()"></div>
       </div>
@@ -365,17 +595,17 @@ function buildGaugeSections() {
 }
 
 function applyTheme(name, btn) {
-  const t = THEMES[name]; if(!t) return;
+  const t = THEMES[name]; if (!t) return;
   document.getElementById('c-bg').value    = t.bg;
   document.getElementById('c-track').value = t.track;
   GAUGES.forEach(g => {
-    const gc = t[g.id]; if(!gc) return;
+    const gc = t[g.id]; if (!gc) return;
     document.getElementById(`gc-${g.id}-arc`).value    = gc.arc;
     document.getElementById(`gc-${g.id}-glabel`).value = gc.glabel;
     document.getElementById(`gc-${g.id}-value`).value  = gc.value;
   });
   document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-  if(btn) btn.classList.add('active');
+  if (btn) btn.classList.add('active');
   applyThemeToSettings(t);
 }
 
@@ -383,67 +613,70 @@ function clearTheme() {
   document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
 }
 
-function loadDisplaySettings(cfg) {
-  const d = cfg.display || {};
-  document.getElementById('d-bright').value  = d.brightness || 200;
-  document.getElementById('d-bval').textContent = d.brightness || 200;
-  document.getElementById('d-timeout').value = d.timeout !== undefined ? d.timeout : 3;
-  document.getElementById('d-always-on').checked = d.always_on  || false;
-  document.getElementById('d-clock').checked     = d.show_clock !== false;
-  document.getElementById('d-time-format').value = d.time_format || '12h';
-  if(d.colors) {
-    if(d.colors.bg)    document.getElementById('c-bg').value    = d.colors.bg;
-    if(d.colors.track) document.getElementById('c-track').value = d.colors.track;
-    GAUGES.forEach(g => {
-      const gc = d.colors[g.id]; if(!gc) return;
-      if(gc.arc)    document.getElementById(`gc-${g.id}-arc`).value    = gc.arc;
-      if(gc.glabel) document.getElementById(`gc-${g.id}-glabel`).value = gc.glabel;
-      if(gc.value)  document.getElementById(`gc-${g.id}-value`).value  = gc.value;
-});
-  }
-  applyThemeToSettings(d.colors || {});
-}
-
-function applyThemeToSettings(c) {
-  const root = document.documentElement;
-  const isDark = c.bg ? isColorDark(c.bg) : true;
-  if (c.bg)    root.style.setProperty('--bg',       c.bg);
-  if (c.track) root.style.setProperty('--input-bg', c.track);
-  if (c.track) root.style.setProperty('--border',   c.track);
-  if (c.nozzle?.arc) root.style.setProperty('--accent', c.nozzle.arc);
-  if (isDark) {
-    root.style.setProperty('--panel',  lighten(c.bg || '#0d1117', 8));
-    root.style.setProperty('--text',   '#e6edf3');
-    root.style.setProperty('--muted',  '#7d8590');
-    root.style.setProperty('--hover',  '#1f2937');
-  } else {
-    root.style.setProperty('--panel',  darken(c.bg || '#f0f0f0', 5));
-    root.style.setProperty('--text',   '#111111');
-    root.style.setProperty('--muted',  '#666666');
-    root.style.setProperty('--hover',  '#e0e0e0');
-  }
-}
-
 function isColorDark(hex) {
   const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
   return (r*299 + g*587 + b*114) / 1000 < 128;
 }
+
 function lighten(hex, pct) {
-  const r = Math.min(255, parseInt(hex.slice(1,3),16)+pct*2);
-  const g = Math.min(255, parseInt(hex.slice(3,5),16)+pct*2);
-  const b = Math.min(255, parseInt(hex.slice(5,7),16)+pct*2);
+  const r = Math.min(255, parseInt(hex.slice(1,3),16) + pct*2);
+  const g = Math.min(255, parseInt(hex.slice(3,5),16) + pct*2);
+  const b = Math.min(255, parseInt(hex.slice(5,7),16) + pct*2);
   return `rgb(${r},${g},${b})`;
 }
+
 function darken(hex, pct) {
-  const r = Math.max(0, parseInt(hex.slice(1,3),16)-pct*2);
-  const g = Math.max(0, parseInt(hex.slice(3,5),16)-pct*2);
-  const b = Math.max(0, parseInt(hex.slice(5,7),16)-pct*2);
+  const r = Math.max(0, parseInt(hex.slice(1,3),16) - pct*2);
+  const g = Math.max(0, parseInt(hex.slice(3,5),16) - pct*2);
+  const b = Math.max(0, parseInt(hex.slice(5,7),16) - pct*2);
   return `rgb(${r},${g},${b})`;
+}
+
+function applyThemeToSettings(c) {
+  const root   = document.documentElement;
+  const isDark = c.bg ? isColorDark(c.bg) : true;
+  if (c.bg)         root.style.setProperty('--bg',      c.bg);
+  if (c.track)      root.style.setProperty('--input-bg',c.track);
+  if (c.track)      root.style.setProperty('--border',  c.track);
+  if (c.nozzle?.arc)root.style.setProperty('--accent',  c.nozzle.arc);
+  if (isDark) {
+    root.style.setProperty('--panel', lighten(c.bg || '#0d1117', 8));
+    root.style.setProperty('--text',  '#e6edf3');
+    root.style.setProperty('--muted', '#7d8590');
+    root.style.setProperty('--hover', '#1f2937');
+  } else {
+    root.style.setProperty('--panel', darken(c.bg || '#f0f0f0', 5));
+    root.style.setProperty('--text',  '#111111');
+    root.style.setProperty('--muted', '#666666');
+    root.style.setProperty('--hover', '#e0e0e0');
+  }
+}
+
+// ── Display settings ───────────────────────────────────────────────────────
+function loadDisplaySettings(cfg) {
+  const d = cfg.display || {};
+  document.getElementById('d-bright').value         = d.brightness  || 200;
+  document.getElementById('d-bval').textContent     = d.brightness  || 200;
+  document.getElementById('d-timeout').value        = d.timeout !== undefined ? d.timeout : 3;
+  document.getElementById('d-always-on').checked    = d.always_on   || false;
+  document.getElementById('d-clock').checked        = d.show_clock  !== false;
+  document.getElementById('d-time-format').value    = d.time_format || '12h';
+  if (d.colors) {
+    if (d.colors.bg)    document.getElementById('c-bg').value    = d.colors.bg;
+    if (d.colors.track) document.getElementById('c-track').value = d.colors.track;
+    GAUGES.forEach(g => {
+      const gc = d.colors[g.id]; if (!gc) return;
+      if (gc.arc)    document.getElementById(`gc-${g.id}-arc`).value    = gc.arc;
+      if (gc.glabel) document.getElementById(`gc-${g.id}-glabel`).value = gc.glabel;
+      if (gc.value)  document.getElementById(`gc-${g.id}-value`).value  = gc.value;
+    });
+  }
+  applyThemeToSettings(d.colors || {});
 }
 
 async function saveDisplay() {
   if (!configLoaded) { showToast('Config not loaded yet, please wait', 'error'); return; }
-  const colors = {bg:document.getElementById('c-bg').value, track:document.getElementById('c-track').value};
+  const colors = { bg: document.getElementById('c-bg').value, track: document.getElementById('c-track').value };
   GAUGES.forEach(g => {
     colors[g.id] = {
       arc:    document.getElementById(`gc-${g.id}-arc`).value,
@@ -452,147 +685,113 @@ async function saveDisplay() {
     };
   });
   config.display = {
-    brightness: parseInt(document.getElementById('d-bright').value),
-    timeout:    parseInt(document.getElementById('d-timeout').value),
-    always_on:  document.getElementById('d-always-on').checked,
-    show_clock: document.getElementById('d-clock').checked,
+    brightness:  parseInt(document.getElementById('d-bright').value),
+    timeout:     parseInt(document.getElementById('d-timeout').value),
+    always_on:   document.getElementById('d-always-on').checked,
+    show_clock:  document.getElementById('d-clock').checked,
     time_format: document.getElementById('d-time-format').value,
     colors,
   };
   try {
-    const res  = await fetch('/api/config/save', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(config)});
+    const res  = await fetch('/api/config/save', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(config) });
     const data = await res.json();
-    if(data.ok) {
-      showToast('Display settings saved', 'success');
-    } else showToast(data.error||'Save failed','error');
-  } catch(e) { showToast('Could not reach server','error'); }
+    if (data.ok) showToast('Display settings saved', 'success');
+    else         showToast(data.error || 'Save failed', 'error');
+  } catch(e) { showToast('Could not reach server', 'error'); }
 }
 
 async function applyBrightness(val) {
   try {
     await fetch('/api/display/brightness', {
-      method: 'POST',
+      method:  'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({brightness: parseInt(val)})
+      body:    JSON.stringify({ brightness: parseInt(val) })
     });
   } catch(e) {}
 }
 
-// Printer settings
-let currentIdx=0, serverState=[], configLoaded=false;
-let config={printers:[
-  {id:'printer1',name:'Printer 1',mode:'cloud',enabled:true},
-  {id:'printer2',name:'Printer 2',mode:'cloud',enabled:true}
-]};
-
-async function init() {
-  buildGaugeSections();
-  try {
-    const [cfgRes,stateRes] = await Promise.all([fetch('/api/config'), fetch('/api/state')]);
-    config      = await cfgRes.json();
-    configLoaded = true;
-    serverState = await stateRes.json();
-    while(config.printers.length < 2) config.printers.push({id:`printer${config.printers.length+1}`,name:`Printer ${config.printers.length+1}`,mode:'lan',enabled:true});
-    loadPrinterForm(0);
-    loadDisplaySettings(config);
-    updateStats();
-    setInterval(refreshState, 4000);
-  } catch(e) { showToast('Could not connect to server','error'); }
-  loadNetworkStatus();loadTimezone();
-}
-
-async function refreshState() {
-  try { serverState = await (await fetch('/api/state')).json(); updateStats(); } catch(e) {}
-}
-
+// ── Printer settings ───────────────────────────────────────────────────────
 function switchPrinter(idx, btn) {
   currentIdx = idx;
-  document.querySelectorAll('.tab').forEach((b,i) => b.classList.toggle('active', i===idx));
-  loadPrinterForm(idx); updateStats();
+  document.querySelectorAll('.tab').forEach((b, i) => b.classList.toggle('active', i === idx));
+  loadPrinterForm(idx);
+  updateStats();
 }
 
 function loadPrinterForm(idx) {
-  const p = config.printers[idx]||{}, mode = p.mode||'lan';
-  document.getElementById('mode-sel').value   = mode;
-  document.getElementById('f-ip').value       = p.ip||'';
-  document.getElementById('f-code').value     = p.access_code||'';
-  document.getElementById('f-region').value   = p.region||'us';
-  document.getElementById('f-token').value    = p.bambu_token||'';
-  document.getElementById('f-uid').value      = p.bambu_user_id||'';
-  document.getElementById('f-serial').value   = p.serial||'';
-  document.getElementById('f-name').value     = p.name||'';
+  const p    = config.printers[idx] || {};
+  const mode = p.mode || 'lan';
+  document.getElementById('mode-sel').value    = mode;
+  document.getElementById('f-ip').value        = p.ip            || '';
+  document.getElementById('f-code').value      = p.access_code   || '';
+  document.getElementById('f-region').value    = p.region        || 'us';
+  document.getElementById('f-token').value     = p.bambu_token   || '';
+  document.getElementById('f-uid').value       = p.bambu_user_id || '';
+  document.getElementById('f-serial').value    = p.serial        || '';
+  document.getElementById('f-name').value      = p.name          || '';
   document.getElementById('f-enabled').checked = p.enabled !== false;
   onModeChange();
 }
 
 function onModeChange() {
   const m = document.getElementById('mode-sel').value;
-  document.getElementById('lan-fields').style.display   = m==='lan'   ? '' : 'none';
-  document.getElementById('cloud-fields').style.display = m==='cloud' ? '' : 'none';
+  document.getElementById('lan-fields').style.display   = m === 'lan'   ? '' : 'none';
+  document.getElementById('cloud-fields').style.display = m === 'cloud' ? '' : 'none';
 }
 
 async function savePrinter() {
   if (!configLoaded) { showToast('Config not loaded yet, please wait', 'error'); return; }
   const mode = document.getElementById('mode-sel').value;
-  const p    = config.printers[currentIdx]||{};
-  p.id       = p.id||`printer${currentIdx+1}`;
-  p.name     = document.getElementById('f-name').value.trim()||`Printer ${currentIdx+1}`;
+  const p    = config.printers[currentIdx] || {};
+  p.id       = p.id || `printer${currentIdx+1}`;
+  p.name     = document.getElementById('f-name').value.trim()   || `Printer ${currentIdx+1}`;
   p.serial   = document.getElementById('f-serial').value.trim();
-  p.mode     = mode; p.enabled = document.getElementById('f-enabled').checked;
-  if(mode==='lan') {
-    p.ip=document.getElementById('f-ip').value.trim();
-    p.access_code=document.getElementById('f-code').value.trim();
+  p.mode     = mode;
+  p.enabled  = document.getElementById('f-enabled').checked;
+  if (mode === 'lan') {
+    p.ip          = document.getElementById('f-ip').value.trim();
+    p.access_code = document.getElementById('f-code').value.trim();
     delete p.bambu_token; delete p.bambu_user_id; delete p.region;
   } else {
-    p.region=document.getElementById('f-region').value;
-    p.bambu_token=document.getElementById('f-token').value.trim();
-    p.bambu_user_id=document.getElementById('f-uid').value.trim();
+    p.region        = document.getElementById('f-region').value;
+    p.bambu_token   = document.getElementById('f-token').value.trim();
+    p.bambu_user_id = document.getElementById('f-uid').value.trim();
     delete p.ip; delete p.access_code;
   }
   config.printers[currentIdx] = p;
   try {
-    const res=await fetch('/api/config/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});
-    const data=await res.json();
-    if(data.ok) showToast('Printer settings saved','success');
-    else showToast(data.error||'Save failed','error');
-  } catch(e) { showToast('Could not reach server','error'); }
+    const res  = await fetch('/api/config/save', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(config) });
+    const data = await res.json();
+    if (data.ok) showToast('Printer settings saved', 'success');
+    else         showToast(data.error || 'Save failed', 'error');
+  } catch(e) { showToast('Could not reach server', 'error'); }
 }
 
 function clearToken() {
-  document.getElementById('f-token').value='';
-  document.getElementById('f-uid').value='';
-  showToast('Token cleared','success');
+  document.getElementById('f-token').value = '';
+  document.getElementById('f-uid').value   = '';
+  showToast('Token cleared', 'success');
 }
 
 function updateStats() {
-  const s=serverState[currentIdx]; if(!s) return;
-  document.getElementById('sdot').className=`sdot ${s.connected?'connected':'disconnected'}`;
-  document.getElementById('stxt').className=`stxt ${s.connected?'connected':'disconnected'}`;
-  document.getElementById('stxt').textContent=s.connected?'Connected':'Offline';
-  document.getElementById('s-state').textContent =s.gcode_state||'--';
-  document.getElementById('s-prog').textContent  =`${s.progress||0}%`;
-  document.getElementById('s-nozzle').textContent=`${Math.round(s.nozzle_temp||0)}/${Math.round(s.nozzle_target||0)}°C`;
-  document.getElementById('s-bed').textContent   =`${Math.round(s.bed_temp||0)}/${Math.round(s.bed_target||0)}°C`;
+  const s = serverState[currentIdx]; if (!s) return;
+  document.getElementById('sdot').className          = `sdot ${s.connected ? 'connected' : 'disconnected'}`;
+  document.getElementById('stxt').className          = `stxt ${s.connected ? 'connected' : 'disconnected'}`;
+  document.getElementById('stxt').textContent        = s.connected ? 'Connected' : 'Offline';
+  document.getElementById('s-state').textContent     = s.gcode_state || '--';
+  document.getElementById('s-prog').textContent      = `${s.progress || 0}%`;
+  document.getElementById('s-nozzle').textContent    = `${Math.round(s.nozzle_temp||0)}/${Math.round(s.nozzle_target||0)}°C`;
+  document.getElementById('s-bed').textContent       = `${Math.round(s.bed_temp||0)}/${Math.round(s.bed_target||0)}°C`;
 }
 
-function toggleCard(hdr) {
-  hdr.classList.toggle('collapsed');
-  hdr.nextElementSibling.classList.toggle('hidden');
-}
-
-function showToast(msg,type='') {
-  const t=document.getElementById('toast');
-  t.textContent=msg; t.className=`show ${type}`;
-  setTimeout(()=>{t.className=type;},3000);
-}
-
+// ── System actions ─────────────────────────────────────────────────────────
 async function sysAction(action) {
   const msg = document.getElementById('sys-msg');
   if (action === 'reboot' || action === 'shutdown') {
     if (!confirm(action === 'reboot' ? 'Reboot the device?' : 'Shut down the device?')) return;
   }
   msg.style.display = 'block';
-  msg.textContent = action === 'reboot' ? 'Rebooting...' : action === 'shutdown' ? 'Shutting down...' : 'Opening terminal...';
+  msg.textContent   = action === 'reboot' ? 'Rebooting...' : action === 'shutdown' ? 'Shutting down...' : 'Opening terminal...';
   try {
     await fetch(`/api/system/${action}`, { method: 'POST' });
   } catch(e) {
@@ -600,22 +799,54 @@ async function sysAction(action) {
   }
 }
 
-let selectedSSID = null;
+// ── Timezone ───────────────────────────────────────────────────────────────
+async function loadTimezone() {
+  try {
+    const res  = await fetch('/api/system/timezone');
+    const data = await res.json();
+    if (data.ok) {
+      const sel = document.getElementById('sys-tz');
+      for (let opt of sel.options) {
+        if (opt.value === data.timezone) { opt.selected = true; break; }
+      }
+      document.getElementById('sys-tz-current').textContent = `Current: ${data.timezone}`;
+    }
+  } catch(e) {}
+}
 
+async function saveTimezone() {
+  const tz = document.getElementById('sys-tz').value;
+  try {
+    const res  = await fetch('/api/system/timezone', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({ timezone: tz })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(`Timezone set to ${tz}`, 'success');
+      document.getElementById('sys-tz-current').textContent = `Current: ${tz}`;
+    } else {
+      showToast(data.error || 'Failed to set timezone', 'error');
+    }
+  } catch(e) { showToast('Failed', 'error'); }
+}
+
+// ── Network — status & WiFi scan ───────────────────────────────────────────
 async function loadNetworkStatus() {
   try {
     const res  = await fetch('/api/network/status');
     const data = await res.json();
     if (data.ok) {
       document.getElementById('net-sdot').style.background = 'var(--green)';
-      document.getElementById('net-stxt').textContent = `${data.ssid} — ${data.ip}`;
+      document.getElementById('net-stxt').textContent      = `${data.ssid} — ${data.ip}`;
     } else {
       document.getElementById('net-stxt').textContent = 'Not connected';
     }
   } catch(e) {
     document.getElementById('net-stxt').textContent = 'Could not reach server';
   }
-loadIPConfig();
+  loadIPConfig();
 }
 
 async function scanNetworks() {
@@ -638,8 +869,7 @@ async function scanNetworks() {
             <span class="net-signal">${n.signal > 70 ? '▂▄▆█' : n.signal > 40 ? '▂▄▆·' : '▂▄··'}</span>
             ${n.active ? '' : `<button class="net-forget" onclick="forgetNetwork(event,'${n.ssid}')">Forget</button>`}
           </div>
-        </div>
-      `).join('');
+        </div>`).join('');
     } else {
       list.innerHTML = `<div style="color:var(--red);font-size:13px">${data.error}</div>`;
     }
@@ -654,7 +884,7 @@ function selectNetwork(ssid, isActive) {
   if (isActive) return;
   selectedSSID = ssid;
   document.getElementById('net-connect-ssid').textContent = ssid;
-  document.getElementById('net-password').value = '';
+  document.getElementById('net-password').value           = '';
   document.getElementById('net-connect-form').style.display = '';
   document.getElementById('net-password').focus();
 }
@@ -673,7 +903,7 @@ async function connectNetwork() {
     const res  = await fetch('/api/network/connect', {
       method:  'POST',
       headers: {'Content-Type': 'application/json'},
-      body:    JSON.stringify({ssid: selectedSSID, password})
+      body:    JSON.stringify({ ssid: selectedSSID, password })
     });
     const data = await res.json();
     if (data.ok) {
@@ -683,9 +913,7 @@ async function connectNetwork() {
     } else {
       showToast(data.error || 'Connection failed', 'error');
     }
-  } catch(e) {
-    showToast('Connection failed', 'error');
-  }
+  } catch(e) { showToast('Connection failed', 'error'); }
   selectedSSID = null;
 }
 
@@ -696,20 +924,15 @@ async function forgetNetwork(event, ssid) {
     const res  = await fetch('/api/network/forget', {
       method:  'POST',
       headers: {'Content-Type': 'application/json'},
-      body:    JSON.stringify({ssid})
+      body:    JSON.stringify({ ssid })
     });
     const data = await res.json();
-    if (data.ok) {
-      showToast(`Forgot ${ssid}`, 'success');
-      scanNetworks();
-    } else {
-      showToast(data.error || 'Failed to forget', 'error');
-    }
-  } catch(e) {
-    showToast('Failed', 'error');
-  }
+    if (data.ok) { showToast(`Forgot ${ssid}`, 'success'); scanNetworks(); }
+    else         showToast(data.error || 'Failed to forget', 'error');
+  } catch(e) { showToast('Failed', 'error'); }
 }
 
+// ── Network — IP configuration ─────────────────────────────────────────────
 function toggleStaticFields() {
   const method = document.getElementById('net-ip-method').value;
   document.getElementById('net-static-fields').style.display = method === 'manual' ? '' : 'none';
@@ -720,10 +943,10 @@ async function loadIPConfig() {
     const res  = await fetch('/api/network/ipconfig');
     const data = await res.json();
     if (data.ok) {
-      document.getElementById('net-ip-method').value = data.method === 'manual' ? 'manual' : 'auto';
+      document.getElementById('net-ip-method').value  = data.method === 'manual' ? 'manual' : 'auto';
       document.getElementById('net-ip-address').value = data.address || '';
       document.getElementById('net-ip-gateway').value = data.gateway || '';
-      document.getElementById('net-ip-dns').value     = data.dns || '8.8.8.8,8.8.4.4';
+      document.getElementById('net-ip-dns').value     = data.dns     || '8.8.8.8,8.8.4.4';
       toggleStaticFields();
     }
   } catch(e) {}
@@ -735,66 +958,24 @@ async function saveIPConfig() {
   const gateway = document.getElementById('net-ip-gateway').value.trim();
   const dns     = document.getElementById('net-ip-dns').value.trim();
   const ssid    = document.getElementById('net-stxt').textContent.split(' —')[0].trim();
-
   if (method === 'manual' && !address) {
     showToast('IP address is required for static configuration', 'error');
     return;
   }
-
   showToast('Applying IP settings...', 'success');
   try {
     const res  = await fetch('/api/network/ipconfig', {
       method:  'POST',
       headers: {'Content-Type': 'application/json'},
-      body:    JSON.stringify({ssid, method, address, gateway, dns})
+      body:    JSON.stringify({ ssid, method, address, gateway, dns })
     });
     const data = await res.json();
-    if (data.ok) {
-      showToast('IP settings applied', 'success');
-      setTimeout(loadNetworkStatus, 2000);
-    } else {
-      showToast(data.error || 'Failed to apply settings', 'error');
-    }
-  } catch(e) {
-    showToast('Failed to apply settings', 'error');
-  }
+    if (data.ok) { showToast('IP settings applied', 'success'); setTimeout(loadNetworkStatus, 2000); }
+    else         showToast(data.error || 'Failed to apply settings', 'error');
+  } catch(e) { showToast('Failed to apply settings', 'error'); }
 }
 
-async function loadTimezone() {
-  try {
-    const res  = await fetch('/api/system/timezone');
-    const data = await res.json();
-    if (data.ok) {
-      const sel = document.getElementById('sys-tz');
-      // Try to select current timezone
-      for (let opt of sel.options) {
-        if (opt.value === data.timezone) { opt.selected = true; break; }
-      }
-      document.getElementById('sys-tz-current').textContent = `Current: ${data.timezone}`;
-    }
-  } catch(e) {}
-}
-
-async function saveTimezone() {
-  const tz = document.getElementById('sys-tz').value;
-  try {
-    const res  = await fetch('/api/system/timezone', {
-      method:  'POST',
-      headers: {'Content-Type': 'application/json'},
-      body:    JSON.stringify({timezone: tz})
-    });
-    const data = await res.json();
-    if (data.ok) {
-      showToast(`Timezone set to ${tz}`, 'success');
-      document.getElementById('sys-tz-current').textContent = `Current: ${tz}`;
-    } else {
-      showToast(data.error || 'Failed to set timezone', 'error');
-    }
-  } catch(e) {
-    showToast('Failed', 'error');
-  }
-}
-
+// ── Boot ───────────────────────────────────────────────────────────────────
 init();
 </script>
 </body>
