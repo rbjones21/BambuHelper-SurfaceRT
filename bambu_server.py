@@ -131,6 +131,11 @@ def default_state(printer_cfg):
         "spd_lvl":        2,
         "stage":          "",
         "last_update":    0,
+        "nozzle_type":    "",
+        "nozzle_diameter": "",
+        "vir_slots":      [],
+        "ams_trays":      [],
+        "ams_job_slots":  [],
     }
 
 state_lock     = threading.Lock()
@@ -409,6 +414,64 @@ def parse_print_message(state, msg):
     if 'subtask_name'         in p: state['print_name']      = p.get('subtask_name', '')
     if 'spd_lvl'              in p: state['spd_lvl']          = int(p['spd_lvl'])
     if 'stg_cur'              in p: state['stage']            = STAGE_MAP.get(int(p['stg_cur']), '')
+    if 'nozzle_type'          in p: state['nozzle_type']    = p.get('nozzle_type', '')
+    if 'nozzle_diameter'      in p: state['nozzle_diameter'] = p.get('nozzle_diameter', '')
+
+    
+# Parse AMS tray data
+    if 'ams' in p and isinstance(p['ams'], dict):
+        ams_list = p['ams'].get('ams', [])
+        trays = []
+        for ams_unit in ams_list:
+            for tray in ams_unit.get('tray', []):
+                color     = tray.get('tray_color', '00000000')
+                hex_color = f"#{color[:6]}" if len(color) >= 6 else '#888888'
+                trays.append({
+                    'id':       f"{ams_unit.get('id','0')}-{tray.get('id','0')}",
+                    'color':    hex_color,
+                    'type':     tray.get('tray_info_idx', ''),
+                    'name':     tray.get('tray_id_name', ''),
+                    'remain':   tray.get('remain', -1),
+                    'temp':     ams_unit.get('temp', ''),
+                    'humidity': ams_unit.get('humidity', ''),
+                    'state':    tray.get('state', 0),
+                    'active':   tray.get('state') == 24,
+                    'in_job':   False,
+                })
+        if trays:
+            state['ams_trays'] = trays
+            # Apply any previously stored job slot mapping
+            if state.get('ams_job_slots'):
+                for tray in state['ams_trays']:
+                    tray['in_job'] = tray['id'] in state['ams_job_slots']
+
+    # Mark which trays are part of the current print job using mapping field
+    if 'mapping' in p:
+        active_slots = set()
+        for m in p['mapping']:
+            if m != 65535 and m != 0:
+                ams_id  = (m >> 8) & 0xFF
+                tray_id = m & 0xFF
+                active_slots.add(f"{ams_id}-{tray_id}")
+        state['ams_job_slots'] = list(active_slots)
+        if state.get('ams_trays'):
+            for tray in state['ams_trays']:
+                tray['in_job'] = tray['id'] in active_slots
+
+    # Parse virtual slots (left/right nozzle filament info)
+    if 'vir_slot' in p:
+        slots = p['vir_slot']
+        vir = []
+        for s in slots[:2]:
+            color     = s.get('tray_color', '00000000')
+            hex_color = f"#{color[:6]}" if len(color) >= 6 else '#888888'
+            vir.append({
+                'color':    hex_color,
+                'type':     s.get('tray_type', ''),
+                'diameter': s.get('tray_diameter', '1.75'),
+                'id':       s.get('id', ''),
+            })
+        state['vir_slots'] = vir
 
     if 'gcode_state' in p:
         state['gcode_state'] = p['gcode_state']
@@ -440,7 +503,6 @@ def parse_print_message(state, msg):
 
     if p.get('gcode_state') == 'FINISH':
         state['errors'] = []
-
     state['last_update'] = time.time()
 
 # ---------------------------------------------------------------------------
