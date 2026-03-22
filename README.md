@@ -1,4 +1,4 @@
-# BambuHelperRT — v1.2.0
+# BambuHelperRT — v1.3.0
 
 A Bambu Lab printer monitor dashboard running on a **Microsoft Surface RT** with Debian 12.
 Connects to one or two printers simultaneously via Bambu Cloud MQTT and displays live status
@@ -49,6 +49,9 @@ Bambu Cloud MQTT → bambu_server.py (Flask + SocketIO :5000) → WebSocket → 
 - **ETA** — estimated finish time (12h or 24h format)
 - **LED progress bar** — H2-style 40-segment bar showing completion %
 - **6 arc gauges** — Nozzle temp, Bed temp, Chamber temp, Part Fan %, Aux Fan %, Exhaust Fan %
+- **Nozzle type** — active nozzle type shown under nozzle gauge (e.g. HS01-0.4, HH01)
+- **Virtual slot dots** — two colored dots under nozzle gauge showing left/right nozzle filament colors
+- **AMS strip** — filament color swatches for all AMS slots with remaining %, active tray highlighted, empty slots faded
 
 ### Layout
 - **Two printers**: side-by-side split layout
@@ -66,6 +69,8 @@ Bambu Cloud MQTT → bambu_server.py (Flask + SocketIO :5000) → WebSocket → 
 
 ## Settings Page
 
+All cards start collapsed — tap a card header to expand it.
+
 ### Printer tabs (Printer 1 / Printer 2)
 - Printer name
 - Connection mode: LAN or Cloud
@@ -78,7 +83,7 @@ Bambu Cloud MQTT → bambu_server.py (Flask + SocketIO :5000) → WebSocket → 
 - **Brightness** slider — controls Surface RT backlight directly
 - **Display off after print** — minutes after all prints finish before screen turns off (0 = never)
 - **Always on** — override timeout, keep screen on permanently
-- **Show clock after print** — show idle clock while waiting for timeout (does not affect when screen turns off)
+- **Show clock after print** — show idle clock while waiting for timeout
 - **Time format** — 12 hour or 24 hour
 
 ### Gauge Colors
@@ -86,13 +91,40 @@ Bambu Cloud MQTT → bambu_server.py (Flask + SocketIO :5000) → WebSocket → 
 - **Per-gauge color pickers** for arc, label, and value colors
 - Theme applies to both dashboard and settings page
 
+### Network
+- **Current connection** — shows active SSID and IP address
+- **WiFi scan** — lists nearby networks with signal strength and security type
+- **Connect** — tap any network to enter password and connect; falls back to previous network on failure
+- **Forget** — removes saved credentials for a network
+- **IP Configuration** — switch between DHCP and Static IP; static mode shows fields for IP/subnet, gateway, and DNS
+
 ### System
+- **Timezone** — select from common timezones; DST handled automatically by the system
 - **Reboot** — reboots the Surface RT (with confirmation)
 - **Shutdown** — shuts down the Surface RT (with confirmation)
 - **Terminal** — opens an xterm window on the display
 
 ### About
 - Project description and links
+
+---
+
+## AMS Support
+
+AMS tray data is parsed from the Bambu Cloud MQTT stream and displayed as a color strip at
+the bottom of each printer panel.
+
+- **Filament colors** — actual spool colors from AMS RFID tags
+- **Remaining %** — percentage of filament remaining per slot (when reported by AMS)
+- **Active tray** — highlighted with accent color and `▶` when state=24 (actively feeding)
+- **In-job trays** — subtly outlined when part of the current print job
+- **Empty slots** — faded to indicate no filament loaded
+- **Multiple AMS units** — supports up to 2 AMS units (8 trays) per printer
+
+> **Note:** Due to cloud MQTT limitations, simultaneous left/right nozzle temperatures are
+> not available for H2D/H2C in cloud mode. Only the active nozzle temperature is reported.
+> Active tray detection (state=24) fires briefly during filament changes; in-job highlighting
+> uses the mapping field to show which slots are assigned to the current print.
 
 ---
 
@@ -216,7 +248,7 @@ Or use the Settings page in the dashboard.
 | `/etc/systemd/system/bambuhelper.service` | Server systemd service |
 | `/etc/systemd/system/bambuhelper-kiosk.service` | Chromium kiosk service |
 | `/etc/udev/rules.d/99-backlight.rules` | Backlight write permissions |
-| `/etc/sudoers.d/bambuhelper` | Passwordless reboot/shutdown |
+| `/etc/sudoers.d/bambuhelper` | Passwordless reboot/shutdown/nmcli/timedatectl |
 
 ---
 
@@ -238,8 +270,14 @@ curl -s http://localhost:5000/api/state | python3 -m json.tool
 # Check display config
 curl -s http://localhost:5000/api/display | python3 -m json.tool
 
+# Check network status
+curl -s http://localhost:5000/api/network/status | python3 -m json.tool
+
 # Set brightness manually (0-254)
 echo 128 | sudo tee /sys/class/backlight/backlight/brightness
+
+# Check WiFi signal
+iw dev mlan0 link
 ```
 
 ---
@@ -264,11 +302,24 @@ If you need remote access, change `host='127.0.0.1'` to `host='0.0.0.0'` in
 | Colors not applying | Open Settings, select theme and click Apply |
 | Screen not turning off | Check timeout > 0 and "Always on" is unchecked |
 | Brightness slider has no effect | Check `/sys/class/backlight/backlight/brightness` is writable |
+| Network scan fails | Check nmcli is in sudoers: `sudo cat /etc/sudoers.d/bambuhelper` |
+| Static IP not applying | Ensure nmcli has sudo access and the SSID name matches exactly |
+| AMS not showing | AMS data only appears after first MQTT pushall (~30s after connect) |
 | bambu-update fails | Run `curl -v --max-time 30 https://raw.githubusercontent.com/rbjones21/BambuHelper-SurfaceRT/main/version.txt` |
 
 ---
 
 ## Changelog
+
+### v1.3.0 — March 2026
+- **Network settings** — WiFi scan, connect to new networks, forget saved networks, all from the settings UI
+- **Static IP / DHCP** — switch between DHCP and static IP configuration via settings; supports IP, gateway, and DNS
+- **Timezone selector** — choose timezone from common presets in Settings → System; DST handled automatically
+- **AMS display** — filament color strip at bottom of each printer panel showing all AMS slots with remaining %, active tray indicator, and in-job highlighting
+- **Nozzle type** — active nozzle type (e.g. HS01-0.4, HH01) shown under nozzle gauge label
+- **Virtual slot dots** — two small colored dots showing left/right nozzle filament colors from Bambu's virtual slot data
+- **Rotation removed** — xrandr not supported on Surface RT framebuffer; all rotation code removed
+- **Code cleanup** — both HTML templates fully reformatted with section comments; settings page opens with all cards collapsed
 
 ### v1.2.0 — March 2026
 - **Idle clock** — full-screen clock and date when no prints are active, auto-returns to printer panels when printing starts
@@ -277,7 +328,6 @@ If you need remote access, change `host='127.0.0.1'` to `host='0.0.0.0'` in
 - **System buttons** — Reboot, Shutdown, and Terminal buttons in Settings → System
 - **Theme consistency** — settings page now matches dashboard theme when changed
 - **Brightness control** — slider now controls Surface RT backlight via `/sys/class/backlight`
-- **Rotation removed** — xrandr not supported on Surface RT framebuffer display
 - **Config protection** — auto-backup to `config.known-good.json`, auto-restore on corrupt config, id field always repaired before save
 - **MQTT stability** — old workers properly disconnected before restarting on config save
 - **Thumbnail spam fixed** — thumbnails only fetched when actively printing, failures cached per print job
