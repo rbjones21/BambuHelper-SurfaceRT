@@ -149,6 +149,9 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'bambuhelper-secret'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
+# ---------------------------------------------------------------------------
+# Page routes
+# ---------------------------------------------------------------------------
 @app.route('/')
 def index():
     return render_template('dashboard.html')
@@ -225,12 +228,18 @@ def api_config_save():
     except Exception as e:
         log.error(f"Config save error: {e}")
         return jsonify({"ok": False, "error": str(e)})
-
+    
+# ---------------------------------------------------------------------------
+# API — State & Config
+# ---------------------------------------------------------------------------
 def broadcast_state():
     with state_lock:
         data = [s for s in printer_states.values() if s.get('enabled', True)]
     socketio.emit('state_update', data)
 
+# ---------------------------------------------------------------------------
+# API — Display & Thumbnail
+# ---------------------------------------------------------------------------
 @app.route('/api/display')
 def api_display():
     return jsonify(CONFIG.get('display', {}))
@@ -270,6 +279,9 @@ def api_thumbnail(printer_id):
         log.warning(f"Thumbnail fetch failed for {printer_id}: {e}")
         return jsonify({"ok": False, "error": str(e)})
 
+# ---------------------------------------------------------------------------
+# API — Network (signal status)
+# ---------------------------------------------------------------------------
 @app.route('/api/network')
 def api_network():
     try:
@@ -288,6 +300,9 @@ def api_network():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
+# ---------------------------------------------------------------------------
+# API — Display controls
+# ---------------------------------------------------------------------------
 @app.route('/api/display/brightness', methods=['POST'])
 def api_display_brightness():
     try:
@@ -300,6 +315,9 @@ def api_display_brightness():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
+# ---------------------------------------------------------------------------
+# API — Printer controls
+# ---------------------------------------------------------------------------
 @app.route('/api/printer/control', methods=['POST'])
 def api_printer_control():
     try:
@@ -335,6 +353,9 @@ def api_printer_control():
         log.error(f"Control error: {e}")
         return jsonify({"ok": False, "error": str(e)})
 
+# ---------------------------------------------------------------------------
+# API — System controls
+# ---------------------------------------------------------------------------
 @app.route('/api/system/reboot', methods=['POST'])
 def api_system_reboot():
     try:
@@ -656,6 +677,9 @@ def display_monitor():
         except Exception as e:
             log.warning(f"Display monitor error: {e}")
 
+# ---------------------------------------------------------------------------
+# API — Network management (scan, connect, IP config)
+# ---------------------------------------------------------------------------
 @app.route('/api/network/status')
 def api_network_status():
     try:
@@ -825,6 +849,9 @@ def api_network_ipconfig_save():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
+# ---------------------------------------------------------------------------
+# API — Timezone
+# ---------------------------------------------------------------------------
 @app.route('/api/system/timezone', methods=['GET'])
 def api_system_timezone_get():
     try:
