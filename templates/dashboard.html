@@ -514,8 +514,9 @@ function panel(s, idx) {
   const nozzleCol  = COLORS.nozzle?.arc || col;
   const slots      = s.vir_slots && s.vir_slots.length >= 2 ? s.vir_slots : null;
   const hasDualTemp = s.nozzle_temp_l != null && s.nozzle_temp_r != null;
-  const nozzleTemp = Math.round(s.nozzle_temp || 0);
-  const nozzleTgt  = Math.round(s.nozzle_target || 0);
+  // Prefer active nozzle reading (target > 0) over idle nozzle reading (H2D cloud MQTT alternates)
+  const nozzleTemp = Math.round(s.nozzle_temp_active != null ? s.nozzle_temp_active : (s.nozzle_temp || 0));
+  const nozzleTgt  = Math.round(s.nozzle_target_active != null ? s.nozzle_target_active : (s.nozzle_target || 0));
   const nFPct      = Math.min(100, nozzleTemp / 300 * 100).toFixed(1);
   const nTPct      = nozzleTgt > 0 ? Math.min(100, nozzleTgt / 300 * 100).toFixed(1) : 0;
   // Dual bar helpers

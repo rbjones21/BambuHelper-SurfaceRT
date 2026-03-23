@@ -113,12 +113,14 @@ def default_state(printer_cfg):
         "enabled":        printer_cfg.get("enabled", True),
         "printing":       False,
         "progress":       0,
-        "nozzle_temp":    0.0,
-        "nozzle_target":  0.0,
-        "nozzle_temp_l":  None,   # left nozzle — populated if H2D sends separate temps
-        "nozzle_temp_r":  None,   # right nozzle
-        "nozzle_target_l": None,
-        "nozzle_target_r": None,
+        "nozzle_temp":          0.0,
+        "nozzle_target":        0.0,
+        "nozzle_temp_active":   None,  # last reading where target > 0 (H2D active nozzle)
+        "nozzle_target_active": None,
+        "nozzle_temp_l":        None,  # separate L/R temps if LAN mode provides them
+        "nozzle_temp_r":        None,
+        "nozzle_target_l":      None,
+        "nozzle_target_r":      None,
         "bed_temp":       0.0,
         "bed_target":     0.0,
         "chamber_temp":   0.0,
@@ -132,6 +134,7 @@ def default_state(printer_cfg):
         "gcode_state":    "IDLE",
         "errors":         [],
         "hms_errors":     [],
+        "dismissed_hms":  [],  # codes dismissed by user — suppressed until new codes arrive
         "spd_lvl":        2,
         "stage":          "",
         "last_update":    0,
@@ -433,8 +436,21 @@ def parse_print_message(state, msg):
     if 'nozzle_temper' in p:
         last_rich_payloads[state['id']] = p
 
-    if 'nozzle_temper'        in p: state['nozzle_temp']    = round(float(p['nozzle_temper']), 1)
-    if 'nozzle_target_temper' in p: state['nozzle_target']  = round(float(p['nozzle_target_temper']), 1)
+    if 'nozzle_temper' in p:
+        state['nozzle_temp'] = round(float(p['nozzle_temper']), 1)
+    if 'nozzle_target_temper' in p:
+        state['nozzle_target'] = round(float(p['nozzle_target_temper']), 1)
+    # Track the active nozzle separately — on the H2D cloud MQTT alternates between
+    # reporting the active nozzle (target > 0) and idle nozzle (target == 0).
+    # Keep the last active reading so the gauge always shows the meaningful temp.
+    if 'nozzle_temper' in p and 'nozzle_target_temper' in p:
+        if round(float(p['nozzle_target_temper']), 1) > 0:
+            state['nozzle_temp_active']   = round(float(p['nozzle_temper']), 1)
+            state['nozzle_target_active'] = round(float(p['nozzle_target_temper']), 1)
+    # Clear active reading when printer finishes or goes idle
+    if p.get('gcode_state') in ('IDLE', 'FINISH'):
+        state['nozzle_temp_active']   = None
+        state['nozzle_target_active'] = None
 
     # Dual nozzle temps — try known H2D field variants
     for lkey, rkey in [
@@ -582,13 +598,21 @@ def parse_print_message(state, msg):
                 c1 = (code >> 16) & 0xFFFF
                 c2 = code & 0xFFFF
                 formatted.append(f"{a1:04X}-{a2:04X}-{c1:04X}-{c2:04X}")
-            state['hms_errors'] = formatted
+            dismissed = state.get('dismissed_hms', [])
+            # If any code is genuinely new (not previously dismissed), clear the dismissed list
+            new_codes = [c for c in formatted if c not in dismissed]
+            if new_codes:
+                state['dismissed_hms'] = []
+                dismissed = []
+            state['hms_errors'] = [c for c in formatted if c not in dismissed]
         else:
-            state['hms_errors'] = []
+            state['hms_errors']    = []
+            state['dismissed_hms'] = []
 
     if p.get('gcode_state') == 'FINISH':
-        state['errors']     = []
-        state['hms_errors'] = []
+        state['errors']        = []
+        state['hms_errors']    = []
+        state['dismissed_hms'] = []
     state['last_update'] = time.time()
 
 # ---------------------------------------------------------------------------
@@ -938,8 +962,10 @@ def api_printer_clear_errors():
         with state_lock:
             if printer_id not in printer_states:
                 return jsonify({"ok": False, "error": "Printer not found"})
-            printer_states[printer_id]['errors']     = []
-            printer_states[printer_id]['hms_errors'] = []
+            # Remember which codes were dismissed so incoming MQTT doesn't re-show them
+            printer_states[printer_id]['dismissed_hms'] = list(printer_states[printer_id].get('hms_errors', []))
+            printer_states[printer_id]['errors']        = []
+            printer_states[printer_id]['hms_errors']    = []
         broadcast_state()
         return jsonify({"ok": True})
     except Exception as e:
