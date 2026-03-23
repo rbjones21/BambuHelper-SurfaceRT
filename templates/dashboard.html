@@ -137,6 +137,18 @@
   /* ── Error strip ── */
   .err-strip { padding: 5px 14px; background: rgba(255,34,68,0.1); border-top: 1px solid rgba(255,34,68,0.2); font-size: 13px; color: #ff4455; font-family: 'Share Tech Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
 
+  /* ── Vertical bar gauge (nozzle — ready for dual L/R temps) ── */
+  .vg-wrap { flex: 1; display: flex; gap: 4px; width: 100%; min-height: 0; }
+  .vg-col  { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 0; }
+  .vg-bar  { flex: 1; width: 100%; background: rgba(0,0,0,0.25); border-radius: 3px; position: relative; overflow: hidden; min-height: 0; }
+  .vg-fill { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 3px; transition: height 0.5s; }
+  .vg-mark { position: absolute; left: 0; right: 0; height: 2px; background: rgba(255,255,255,0.55); border-radius: 1px; }
+  .vg-val  { font-family: 'Share Tech Mono', monospace; font-size: clamp(12px, 1.8vw, 19px); font-weight: 700; color: var(--text); line-height: 1; }
+  .vg-sub  { font-family: 'Share Tech Mono', monospace; font-size: clamp(9px, 1.1vw, 11px); color: var(--muted); line-height: 1; }
+  .vg-dot  { width: 8px; height: 8px; border-radius: 50%; border: 1px solid rgba(128,128,128,0.35); flex-shrink: 0; }
+  #printers.single .vg-val { font-size: clamp(16px, 2.2vw, 26px) !important; }
+  #printers.single .vg-sub { font-size: clamp(11px, 1.3vw, 14px) !important; }
+
   /* ── HMS error codes ── */
   .hms-strip { padding: 4px 14px; background: rgba(255,34,68,0.06); border-top: 1px solid rgba(255,34,68,0.12); display: flex; flex-wrap: wrap; gap: 4px; flex-shrink: 0; }
   .hms-code  { font-size: 10px; color: #ff6677; font-family: 'Share Tech Mono', monospace; border: 1px solid rgba(255,34,68,0.3); border-radius: 3px; padding: 1px 6px; text-decoration: none; letter-spacing: 0.5px; }
@@ -488,10 +500,27 @@ function panel(s, idx) {
       ${etaBlock}
     </div>`;
 
-  // Arc gauges
-  const arcNozzle  = arcSVG(Math.round(s.nozzle_temp||0),  300, Math.round(s.nozzle_target||0), COLORS.nozzle?.arc  || col);
-  const arcBed     = arcSVG(Math.round(s.bed_temp||0),     120, Math.round(s.bed_target||0),     COLORS.bed?.arc     || '#ff9944');
-  const arcChamber = arcSVG(Math.round(s.chamber_temp||0),  60, 0,                               '#aa66ff');
+  // Arc gauges (bed + chamber)
+  const arcBed     = arcSVG(Math.round(s.bed_temp||0),     120, Math.round(s.bed_target||0), COLORS.bed?.arc || '#ff9944');
+  const arcChamber = arcSVG(Math.round(s.chamber_temp||0),  60, 0,                           '#aa66ff');
+
+  // Nozzle — vertical bar, ready for separate L/R temps when LAN mode is available
+  const nozzleTemp = Math.round(s.nozzle_temp || 0);
+  const nozzleTgt  = Math.round(s.nozzle_target || 0);
+  const slots      = s.vir_slots && s.vir_slots.length >= 2 ? s.vir_slots : null;
+  const vbar = (fillCol, dotCol, tVal, tgtVal) => {
+    const fPct = Math.min(100, tVal / 300 * 100).toFixed(1);
+    const tPct = tgtVal > 0 ? Math.min(100, tgtVal / 300 * 100).toFixed(1) : 0;
+    return `<div class="vg-col">
+      ${dotCol ? `<div class="vg-dot" style="background:${dotCol}"></div>` : ''}
+      <div class="vg-bar">
+        <div class="vg-fill" style="height:${fPct}%;background:${fillCol}"></div>
+        ${tgtVal > 0 ? `<div class="vg-mark" style="bottom:${tPct}%"></div>` : ''}
+      </div>
+      <div class="vg-val">${tVal}</div>
+      <div class="vg-sub">${tgtVal > 0 ? '&#9658;' + tgtVal + '&deg;' : '&deg;C'}</div>
+    </div>`;
+  };
 
   // Fan gauge cell
   const fanCell = (lbl, val, gaugeKey, fallbackCol) => `
@@ -532,20 +561,13 @@ function panel(s, idx) {
       <div class="gg">
         <div class="gc">
           <div class="gc-lbl">Nozzle
-            ${s.vir_slots && s.vir_slots.length >= 2 ? `
-              <div style="display:flex;gap:3px;justify-content:center;margin-top:3px">
-                <div title="Left nozzle"  style="width:10px;height:10px;border-radius:50%;background:${s.vir_slots[0].color};border:1px solid rgba(128,128,128,0.4)"></div>
-                <div title="Right nozzle" style="width:10px;height:10px;border-radius:50%;background:${s.vir_slots[1].color};border:1px solid rgba(128,128,128,0.4)"></div>
-              </div>` : ''}
             ${s.nozzle_type ? `<span style="font-size:9px;font-weight:400;display:block;margin-top:1px">${s.nozzle_type}</span>` : ''}
           </div>
-          <div class="arc-box">
-            ${arcNozzle}
-            <div class="arc-over">
-              <div class="arc-v">${Math.round(s.nozzle_temp||0)}</div>
-              <div class="arc-u">°C</div>
-              ${s.nozzle_target > 0 ? `<div class="arc-tgt">▶${Math.round(s.nozzle_target)}°</div>` : ''}
-            </div>
+          <div class="vg-wrap">
+            ${slots
+              ? vbar(col, slots[0].color, nozzleTemp, nozzleTgt) + vbar(col, slots[1].color, nozzleTemp, nozzleTgt)
+              : vbar(col, null, nozzleTemp, nozzleTgt)
+            }
           </div>
         </div>
         <div class="gc">
