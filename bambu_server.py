@@ -523,7 +523,8 @@ def parse_print_message(state, msg):
             state['hms_errors'] = []
 
     if p.get('gcode_state') == 'FINISH':
-        state['errors'] = []
+        state['errors']     = []
+        state['hms_errors'] = []
     state['last_update'] = time.time()
 
 # ---------------------------------------------------------------------------
@@ -846,6 +847,23 @@ def api_network_ipconfig_save():
             return jsonify({"ok": True})
         else:
             return jsonify({"ok": False, "error": result.stderr.strip()})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+# ---------------------------------------------------------------------------
+# API — Clear printer errors (manual dismiss for stale cloud MQTT errors)
+# ---------------------------------------------------------------------------
+@app.route('/api/printer/clear_errors', methods=['POST'])
+def api_printer_clear_errors():
+    try:
+        printer_id = request.get_json().get('printer_id')
+        with state_lock:
+            if printer_id not in printer_states:
+                return jsonify({"ok": False, "error": "Printer not found"})
+            printer_states[printer_id]['errors']     = []
+            printer_states[printer_id]['hms_errors'] = []
+        broadcast_state()
+        return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 

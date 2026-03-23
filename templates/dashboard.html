@@ -150,9 +150,11 @@
   #printers.single .vg-sub { font-size: clamp(11px, 1.3vw, 14px) !important; }
 
   /* ── HMS error codes ── */
-  .hms-strip { padding: 4px 14px; background: rgba(255,34,68,0.06); border-top: 1px solid rgba(255,34,68,0.12); display: flex; flex-wrap: wrap; gap: 4px; flex-shrink: 0; }
-  .hms-code  { font-size: 10px; color: #ff6677; font-family: 'Share Tech Mono', monospace; border: 1px solid rgba(255,34,68,0.3); border-radius: 3px; padding: 1px 6px; text-decoration: none; letter-spacing: 0.5px; }
+  .hms-strip      { padding: 4px 14px; background: rgba(255,34,68,0.06); border-top: 1px solid rgba(255,34,68,0.12); display: flex; flex-wrap: wrap; align-items: center; gap: 4px; flex-shrink: 0; }
+  .hms-code       { font-size: 10px; color: #ff6677; font-family: 'Share Tech Mono', monospace; border: 1px solid rgba(255,34,68,0.3); border-radius: 3px; padding: 1px 6px; text-decoration: none; letter-spacing: 0.5px; }
   .hms-code:hover { background: rgba(255,34,68,0.12); }
+  .hms-dismiss    { margin-left: auto; font-size: 14px; color: rgba(255,100,119,0.6); cursor: pointer; padding: 0 4px; line-height: 1; border: none; background: none; }
+  .hms-dismiss:hover { color: #ff6677; }
 
   /* ── AMS filament type label + environment ── */
   .ams-type { font-size: 11px; color: var(--muted); font-family: 'Share Tech Mono', monospace; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; line-height: 1.2; }
@@ -428,9 +430,12 @@ function panel(s, idx) {
   if (s.errors && s.errors.length)
     errHtml += `<div class="err-strip">⚠ ${s.errors[s.errors.length-1]}</div>`;
   if (s.hms_errors && s.hms_errors.length)
-    errHtml += `<div class="hms-strip">${s.hms_errors.map(code =>
-      `<a class="hms-code" href="https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/${code}" target="_blank">${code}</a>`
-    ).join('')}</div>`;
+    errHtml += `<div class="hms-strip">
+      ${s.hms_errors.map(code =>
+        `<a class="hms-code" href="https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/${code}" target="_blank">${code}</a>`
+      ).join('')}
+      <button class="hms-dismiss" onclick="clearErrors('${s.id}')" title="Dismiss errors">✕</button>
+    </div>`;
   const errStrip = errHtml;
 
   // AMS tray strip — highlights active (state=24) and in-job trays
@@ -671,6 +676,15 @@ async function updateBattery() {
 }
 setInterval(updateBattery, 60000);
 updateBattery();
+
+// ── Clear printer errors (dismiss stale HMS codes) ───────────────────────
+async function clearErrors(printerId) {
+  await fetch('/api/printer/clear_errors', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({printer_id: printerId})
+  });
+}
 
 // ── Main render — called on every state update ────────────────────────────
 function render(states) {
