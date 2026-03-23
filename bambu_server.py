@@ -28,6 +28,7 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 CONFIG_PATH            = '/etc/bambuhelper/config.json'
 KNOWN_GOOD_CONFIG_PATH = '/etc/bambuhelper/config.known-good.json'
+DISMISSED_HMS_PATH     = '/etc/bambuhelper/dismissed_hms.json'
 
 # ---------------------------------------------------------------------------
 # Config helpers
@@ -78,6 +79,28 @@ def load_config():
     }
 
 CONFIG = load_config()
+
+# ---------------------------------------------------------------------------
+# Dismissed HMS persistence — survives reboots
+# ---------------------------------------------------------------------------
+def load_dismissed_hms():
+    """Return {printer_id: [code, ...]} from disk, or empty dict."""
+    try:
+        with open(DISMISSED_HMS_PATH, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def save_dismissed_hms(dismissed):
+    """Persist {printer_id: [code, ...]} to disk."""
+    try:
+        os.makedirs(os.path.dirname(DISMISSED_HMS_PATH), exist_ok=True)
+        with open(DISMISSED_HMS_PATH, 'w') as f:
+            json.dump(dismissed, f)
+    except Exception as e:
+        log.warning(f"Could not save dismissed HMS: {e}")
+
+_dismissed_hms_store = load_dismissed_hms()
 
 # ---------------------------------------------------------------------------
 # Cloud broker config
@@ -148,8 +171,14 @@ def default_state(printer_cfg):
 state_lock      = threading.Lock()
 active_clients  = {}  # printer_id -> active mqtt client
 printer_states  = {cfg["id"]: default_state(cfg) for cfg in CONFIG["printers"]}
-last_payloads   = {}  # printer_id -> last raw print payload (for debug)
+last_payloads      = {}  # printer_id -> last raw print payload (for debug)
 last_rich_payloads = {}  # printer_id -> last payload that contained nozzle_temper (for debug)
+
+# Restore persisted dismissed HMS codes into initial state
+for _pid, _codes in _dismissed_hms_store.items():
+    if _pid in printer_states and _codes:
+        printer_states[_pid]['dismissed_hms'] = _codes
+        log.info(f"[{_pid}] Restored {len(_codes)} dismissed HMS code(s) from disk")
 
 # ---------------------------------------------------------------------------
 # Flask + SocketIO
@@ -613,6 +642,8 @@ def parse_print_message(state, msg):
         state['errors']        = []
         state['hms_errors']    = []
         state['dismissed_hms'] = []
+        _dismissed_hms_store.pop(state['id'], None)
+        save_dismissed_hms(_dismissed_hms_store)
     state['last_update'] = time.time()
 
 # ---------------------------------------------------------------------------
@@ -962,10 +993,13 @@ def api_printer_clear_errors():
         with state_lock:
             if printer_id not in printer_states:
                 return jsonify({"ok": False, "error": "Printer not found"})
-            # Remember which codes were dismissed so incoming MQTT doesn't re-show them
-            printer_states[printer_id]['dismissed_hms'] = list(printer_states[printer_id].get('hms_errors', []))
+            codes = list(printer_states[printer_id].get('hms_errors', []))
+            printer_states[printer_id]['dismissed_hms'] = codes
             printer_states[printer_id]['errors']        = []
             printer_states[printer_id]['hms_errors']    = []
+        # Persist so dismiss survives reboot
+        _dismissed_hms_store[printer_id] = codes
+        save_dismissed_hms(_dismissed_hms_store)
         broadcast_state()
         return jsonify({"ok": True})
     except Exception as e:
