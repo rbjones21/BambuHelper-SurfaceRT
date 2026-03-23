@@ -65,7 +65,8 @@
   /* ── Panel (per-printer card) ── */
   .pnl          { background: var(--panel); border: 1px solid var(--bdr); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; position: relative; transition: border-color 0.4s; }
   .pnl.printing { border-color: var(--ac); box-shadow: inset 0 0 0 1px var(--ac); }
-  .pnl.error    { border-color: #ff2244; }
+  @keyframes flash-err { 0%,100%{ border-color:#ff2244; box-shadow:inset 0 0 0 1px #ff2244; } 50%{ border-color:#ff5566; box-shadow:inset 0 0 0 1px #ff5566, 0 0 14px #ff224428; } }
+  .pnl.error    { animation: flash-err 2s ease-in-out infinite; }
 
   /* Panel header row */
   .pnl-hdr  { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; border-bottom: 1px solid var(--bdr); flex-shrink: 0; }
@@ -136,6 +137,23 @@
   /* ── Error strip ── */
   .err-strip { padding: 5px 14px; background: rgba(255,34,68,0.1); border-top: 1px solid rgba(255,34,68,0.2); font-size: 13px; color: #ff4455; font-family: 'Share Tech Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
 
+  /* ── HMS error codes ── */
+  .hms-strip { padding: 4px 14px; background: rgba(255,34,68,0.06); border-top: 1px solid rgba(255,34,68,0.12); display: flex; flex-wrap: wrap; gap: 4px; flex-shrink: 0; }
+  .hms-code  { font-size: 10px; color: #ff6677; font-family: 'Share Tech Mono', monospace; border: 1px solid rgba(255,34,68,0.3); border-radius: 3px; padding: 1px 6px; text-decoration: none; letter-spacing: 0.5px; }
+  .hms-code:hover { background: rgba(255,34,68,0.12); }
+
+  /* ── AMS filament type label + environment ── */
+  .ams-type { font-size: 8px; color: var(--muted); font-family: 'Share Tech Mono', monospace; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; line-height: 1.2; }
+  .ams-env  { font-size: 9px; color: var(--muted); font-family: 'Share Tech Mono', monospace; text-align: right; margin-top: 3px; letter-spacing: 0.5px; }
+
+  /* ── Battery indicator ── */
+  .batt-status          { display: flex; align-items: center; gap: 5px; font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--muted); }
+  .batt-bar             { width: 20px; height: 10px; border: 1.5px solid currentColor; border-radius: 2px; padding: 1px; position: relative; }
+  .batt-bar::after      { content: ''; position: absolute; right: -4px; top: 50%; transform: translateY(-50%); width: 3px; height: 5px; background: currentColor; border-radius: 0 1px 1px 0; }
+  .batt-fill            { height: 100%; border-radius: 1px; background: currentColor; transition: width 0.5s; }
+  .batt-status.charging { color: #00ff88; }
+  .batt-status.low      { color: #ff3344; }
+
   /* ── Single printer mode — expand everything ── */
   #printers.single .pnl-name    { font-size: 32px; }
   #printers.single .pnl-dot     { width: 13px; height: 13px; }
@@ -188,6 +206,10 @@
   <header>
     <div class="logo">BambuHelper<em>RT</em></div>
     <div class="hdr-r">
+      <div class="batt-status" id="batt-status" style="display:none">
+        <div class="batt-bar"><div class="batt-fill" id="batt-fill" style="width:100%"></div></div>
+        <span id="batt-pct">--%</span>
+      </div>
       <div class="net-status" id="net-status">
         <div class="net-dot" id="net-dot"></div>
         <span class="net-label" id="net-label">Network</span>
@@ -347,6 +369,18 @@ function fmt(min) {
   return h ? `${h}h ${m}m` : `${m}m`;
 }
 
+// ── Filament type decoder ─────────────────────────────────────────────────
+const FILAMENT_TYPE = {
+  GFL: 'PLA', GFG: 'PETG', GFA: 'ABS', GFT: 'TPU', GFB: 'PA',
+  GFC: 'PC',  GFS: 'PVA',  GFN: 'CF',  GFH: 'ASA', GFF: 'PA-CF',
+  GFI: 'PAHT', GFJ: 'PC-CF',
+};
+function filamentShort(name, type) {
+  if (name) return name.replace(/^(Bambu|Generic)\s+/i, '').slice(0, 10);
+  if (type) return FILAMENT_TYPE[type.slice(0, 3)] || type.slice(0, 6);
+  return '';
+}
+
 // ── Print state SVG icon ──────────────────────────────────────────────────
 function printIcon(s) {
   const sc = stCls(s);
@@ -375,11 +409,33 @@ function panel(s, idx) {
       <div class="dots"><span></span><span></span><span></span></div>
     </div>` : '';
 
-  // Error strip
-  const errStrip = (s.errors && s.errors.length)
-    ? `<div class="err-strip">⚠ ${s.errors[s.errors.length-1]}</div>` : '';
+  // Error strip + HMS codes with wiki links
+  let errHtml = '';
+  if (s.errors && s.errors.length)
+    errHtml += `<div class="err-strip">⚠ ${s.errors[s.errors.length-1]}</div>`;
+  if (s.hms_errors && s.hms_errors.length)
+    errHtml += `<div class="hms-strip">${s.hms_errors.map(code =>
+      `<a class="hms-code" href="https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/${code}" target="_blank">${code}</a>`
+    ).join('')}</div>`;
+  const errStrip = errHtml;
 
   // AMS tray strip — highlights active (state=24) and in-job trays
+  // Collect per-AMS-unit temp/humidity for display below the strip
+  const amsEnv = (() => {
+    if (!s.ams_trays || !s.ams_trays.length) return '';
+    const seen = new Set(), parts = [];
+    s.ams_trays.forEach(t => {
+      const unit = t.id.split('-')[0];
+      if (!seen.has(unit)) {
+        seen.add(unit);
+        const temp = t.temp ? `${parseFloat(t.temp).toFixed(0)}°C` : null;
+        const hum  = t.humidity ? `H${t.humidity}` : null;
+        if (temp || hum) parts.push([temp, hum].filter(Boolean).join(' · '));
+      }
+    });
+    return parts.length ? `<div class="ams-env">${parts.join(' | ')}</div>` : '';
+  })();
+
   const amsSection = s.ams_trays && s.ams_trays.length > 0 ? `
     <div class="ams-sect">
       <div class="ams-lbl">AMS</div>
@@ -398,8 +454,10 @@ function panel(s, idx) {
             <div class="ams-remain" style="color:${t.active||t.in_job ? col : 'var(--muted)'};font-weight:${t.active?'700':'400'};">
               ${t.active ? '▶' : ''}${t.remain >= 0 ? t.remain+'%' : '--'}
             </div>
+            ${filamentShort(t.name, t.type) ? `<div class="ams-type">${filamentShort(t.name, t.type)}</div>` : ''}
           </div>`).join('')}
       </div>
+      ${amsEnv}
     </div>` : '';
 
   // ETA — arrival time of print completion
@@ -570,6 +628,25 @@ async function updateNetStatus() {
 }
 setInterval(updateNetStatus, 30000);
 updateNetStatus();
+
+// ── Battery status — polls /api/system/battery every 60s ──────────────────
+async function updateBattery() {
+  try {
+    const res  = await fetch('/api/system/battery');
+    const data = await res.json();
+    const el   = document.getElementById('batt-status');
+    if (!el || !data.ok) return;
+    el.style.display = '';
+    const pct      = data.capacity;
+    const charging = data.status === 'Charging';
+    const low      = pct < 20 && !charging;
+    el.className   = `batt-status${charging ? ' charging' : low ? ' low' : ''}`;
+    document.getElementById('batt-pct').textContent  = `${pct}%`;
+    document.getElementById('batt-fill').style.width = `${pct}%`;
+  } catch(e) {}
+}
+setInterval(updateBattery, 60000);
+updateBattery();
 
 // ── Main render — called on every state update ────────────────────────────
 function render(states) {

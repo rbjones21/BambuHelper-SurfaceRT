@@ -850,6 +850,31 @@ def api_network_ipconfig_save():
         return jsonify({"ok": False, "error": str(e)})
 
 # ---------------------------------------------------------------------------
+# API — Battery / power supply
+# ---------------------------------------------------------------------------
+@app.route('/api/system/battery')
+def api_system_battery():
+    try:
+        base = '/sys/class/power_supply'
+        for name in os.listdir(base):
+            uevent_path = f'{base}/{name}/uevent'
+            if not os.path.exists(uevent_path):
+                continue
+            props = {}
+            with open(uevent_path) as f:
+                for line in f:
+                    if '=' in line:
+                        k, v = line.strip().split('=', 1)
+                        props[k] = v
+            if props.get('POWER_SUPPLY_TYPE', '').upper() == 'BATTERY':
+                capacity = int(props.get('POWER_SUPPLY_CAPACITY', 0))
+                status   = props.get('POWER_SUPPLY_STATUS', 'Unknown')
+                return jsonify({"ok": True, "capacity": capacity, "status": status})
+        return jsonify({"ok": False, "error": "No battery found"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+# ---------------------------------------------------------------------------
 # API — Timezone
 # ---------------------------------------------------------------------------
 @app.route('/api/system/timezone', methods=['GET'])
