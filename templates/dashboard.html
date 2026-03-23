@@ -137,17 +137,18 @@
   /* ── Error strip ── */
   .err-strip { padding: 5px 14px; background: rgba(255,34,68,0.1); border-top: 1px solid rgba(255,34,68,0.2); font-size: 13px; color: #ff4455; font-family: 'Share Tech Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
 
-  /* ── Vertical bar gauge (nozzle — ready for dual L/R temps) ── */
-  .vg-wrap { flex: 1; display: flex; gap: 4px; width: 100%; min-height: 0; }
-  .vg-col  { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 0; }
-  .vg-bar  { flex: 1; width: 100%; background: rgba(0,0,0,0.25); border-radius: 3px; position: relative; overflow: hidden; min-height: 0; }
-  .vg-fill { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 3px; transition: height 0.5s; }
-  .vg-mark { position: absolute; left: 0; right: 0; height: 2px; background: rgba(255,255,255,0.55); border-radius: 1px; }
-  .vg-val  { font-family: 'Share Tech Mono', monospace; font-size: clamp(12px, 1.8vw, 19px); font-weight: 700; color: var(--text); line-height: 1; }
-  .vg-sub  { font-family: 'Share Tech Mono', monospace; font-size: clamp(9px, 1.1vw, 11px); color: var(--muted); line-height: 1; }
-  .vg-dot  { width: 8px; height: 8px; border-radius: 50%; border: 1px solid rgba(128,128,128,0.35); flex-shrink: 0; }
-  #printers.single .vg-val { font-size: clamp(16px, 2.2vw, 26px) !important; }
-  #printers.single .vg-sub { font-size: clamp(11px, 1.3vw, 14px) !important; }
+  /* ── Vertical bar gauge (nozzle) ── */
+  .vg-outer { flex: 1; display: flex; justify-content: center; align-items: stretch; width: 100%; min-height: 0; padding: 2px 0; }
+  .vg-bar   { width: 26px; background: rgba(255,255,255,.05); border-radius: 4px; position: relative; overflow: hidden; min-height: 0; }
+  .vg-fill  { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 4px; transition: height 0.5s; }
+  .vg-mark  { position: absolute; left: 0; right: 0; height: 2px; background: rgba(255,255,255,0.55); border-radius: 1px; }
+  .vg-val   { font-family: 'Share Tech Mono', monospace; font-size: clamp(14px, 2vw, 22px); font-weight: 700; color: var(--text); line-height: 1; }
+  .vg-sub   { font-family: 'Share Tech Mono', monospace; font-size: clamp(10px, 1.2vw, 13px); color: var(--muted); line-height: 1; }
+  .vg-dots  { display: flex; gap: 4px; justify-content: center; }
+  .vg-dot   { width: 9px; height: 9px; border-radius: 50%; border: 1px solid rgba(128,128,128,0.35); }
+  #printers.single .vg-bar { width: 38px; }
+  #printers.single .vg-val { font-size: clamp(18px, 2.4vw, 28px) !important; }
+  #printers.single .vg-sub { font-size: clamp(12px, 1.4vw, 15px) !important; }
 
   /* ── HMS error codes ── */
   .hms-strip      { padding: 4px 14px; background: rgba(255,34,68,0.06); border-top: 1px solid rgba(255,34,68,0.12); display: flex; flex-wrap: wrap; align-items: center; gap: 4px; flex-shrink: 0; }
@@ -509,23 +510,15 @@ function panel(s, idx) {
   const arcBed     = arcSVG(Math.round(s.bed_temp||0),     120, Math.round(s.bed_target||0), COLORS.bed?.arc || '#ff9944');
   const arcChamber = arcSVG(Math.round(s.chamber_temp||0),  60, 0,                           '#aa66ff');
 
-  // Nozzle — vertical bar, ready for separate L/R temps when LAN mode is available
+  // Nozzle — single slim vertical bar matching arc gauge theme.
+  // Cloud MQTT only provides one nozzle_temper; filament colour dots shown separately.
+  // Layout will split to two bars when LAN mode provides independent L/R temps.
   const nozzleTemp = Math.round(s.nozzle_temp || 0);
   const nozzleTgt  = Math.round(s.nozzle_target || 0);
+  const nozzleCol  = COLORS.nozzle?.arc || col;
   const slots      = s.vir_slots && s.vir_slots.length >= 2 ? s.vir_slots : null;
-  const vbar = (fillCol, dotCol, tVal, tgtVal) => {
-    const fPct = Math.min(100, tVal / 300 * 100).toFixed(1);
-    const tPct = tgtVal > 0 ? Math.min(100, tgtVal / 300 * 100).toFixed(1) : 0;
-    return `<div class="vg-col">
-      ${dotCol ? `<div class="vg-dot" style="background:${dotCol}"></div>` : ''}
-      <div class="vg-bar">
-        <div class="vg-fill" style="height:${fPct}%;background:${fillCol}"></div>
-        ${tgtVal > 0 ? `<div class="vg-mark" style="bottom:${tPct}%"></div>` : ''}
-      </div>
-      <div class="vg-val">${tVal}</div>
-      <div class="vg-sub">${tgtVal > 0 ? '&#9658;' + tgtVal + '&deg;' : '&deg;C'}</div>
-    </div>`;
-  };
+  const nFPct      = Math.min(100, nozzleTemp / 300 * 100).toFixed(1);
+  const nTPct      = nozzleTgt > 0 ? Math.min(100, nozzleTgt / 300 * 100).toFixed(1) : 0;
 
   // Fan gauge cell
   const fanCell = (lbl, val, gaugeKey, fallbackCol) => `
@@ -568,12 +561,18 @@ function panel(s, idx) {
           <div class="gc-lbl">Nozzle
             ${s.nozzle_type ? `<span style="font-size:9px;font-weight:400;display:block;margin-top:1px">${s.nozzle_type}</span>` : ''}
           </div>
-          <div class="vg-wrap">
-            ${slots
-              ? vbar(col, slots[0].color, nozzleTemp, nozzleTgt) + vbar(col, slots[1].color, nozzleTemp, nozzleTgt)
-              : vbar(col, null, nozzleTemp, nozzleTgt)
-            }
+          <div class="vg-outer">
+            <div class="vg-bar">
+              <div class="vg-fill" style="height:${nFPct}%;background:${nozzleCol};box-shadow:0 -2px 8px ${nozzleCol}55"></div>
+              ${nozzleTgt > 0 ? `<div class="vg-mark" style="bottom:${nTPct}%"></div>` : ''}
+            </div>
           </div>
+          <div class="vg-val">${nozzleTemp}</div>
+          <div class="vg-sub">${nozzleTgt > 0 ? '&#9658;' + nozzleTgt + '&deg;' : '&deg;C'}</div>
+          ${slots ? `<div class="vg-dots">
+            <div class="vg-dot" title="Left nozzle"  style="background:${slots[0].color}"></div>
+            <div class="vg-dot" title="Right nozzle" style="background:${slots[1].color}"></div>
+          </div>` : ''}
         </div>
         <div class="gc">
           <div class="gc-lbl">Bed</div>
