@@ -510,15 +510,36 @@ function panel(s, idx) {
   const arcBed     = arcSVG(Math.round(s.bed_temp||0),     120, Math.round(s.bed_target||0), COLORS.bed?.arc || '#ff9944');
   const arcChamber = arcSVG(Math.round(s.chamber_temp||0),  60, 0,                           '#aa66ff');
 
-  // Nozzle — single slim vertical bar matching arc gauge theme.
-  // Cloud MQTT only provides one nozzle_temper; filament colour dots shown separately.
-  // Layout will split to two bars when LAN mode provides independent L/R temps.
-  const nozzleTemp = Math.round(s.nozzle_temp || 0);
-  const nozzleTgt  = Math.round(s.nozzle_target || 0);
+  // Nozzle — single bar normally; splits to L/R when separate temps are received
   const nozzleCol  = COLORS.nozzle?.arc || col;
   const slots      = s.vir_slots && s.vir_slots.length >= 2 ? s.vir_slots : null;
+  const hasDualTemp = s.nozzle_temp_l != null && s.nozzle_temp_r != null;
+  const nozzleTemp = Math.round(s.nozzle_temp || 0);
+  const nozzleTgt  = Math.round(s.nozzle_target || 0);
   const nFPct      = Math.min(100, nozzleTemp / 300 * 100).toFixed(1);
   const nTPct      = nozzleTgt > 0 ? Math.min(100, nozzleTgt / 300 * 100).toFixed(1) : 0;
+  // Dual bar helpers
+  const nLTemp = hasDualTemp ? Math.round(s.nozzle_temp_l) : nozzleTemp;
+  const nRTemp = hasDualTemp ? Math.round(s.nozzle_temp_r) : nozzleTemp;
+  const nLTgt  = hasDualTemp && s.nozzle_target_l != null ? Math.round(s.nozzle_target_l) : nozzleTgt;
+  const nRTgt  = hasDualTemp && s.nozzle_target_r != null ? Math.round(s.nozzle_target_r) : nozzleTgt;
+  const nLFPct = Math.min(100, nLTemp / 300 * 100).toFixed(1);
+  const nRFPct = Math.min(100, nRTemp / 300 * 100).toFixed(1);
+  const nLTPct = nLTgt > 0 ? Math.min(100, nLTgt / 300 * 100).toFixed(1) : 0;
+  const nRTPct = nRTgt > 0 ? Math.min(100, nRTgt / 300 * 100).toFixed(1) : 0;
+  const dualBar = (temp, tgt, label, dotCol) => {
+    const fp = Math.min(100, temp / 300 * 100).toFixed(1);
+    const tp = tgt > 0 ? Math.min(100, tgt / 300 * 100).toFixed(1) : 0;
+    return `<div class="vg-col">
+      <div style="font-size:9px;color:var(--muted);letter-spacing:1px;font-family:'Share Tech Mono',monospace">${label}</div>
+      <div class="vg-bar">
+        <div class="vg-fill" style="height:${fp}%;background:${nozzleCol};box-shadow:0 -2px 8px ${nozzleCol}55"></div>
+        ${tgt > 0 ? `<div class="vg-mark" style="bottom:${tp}%"></div>` : ''}
+      </div>
+      <div class="vg-val" style="font-size:clamp(11px,1.6vw,17px)">${dotCol ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dotCol};vertical-align:middle;margin-right:2px"></span>` : ''}${temp}</div>
+      <div class="vg-sub">${tgt > 0 ? '&#9658;' + tgt + '&deg;' : '&deg;C'}</div>
+    </div>`;
+  };
 
   // Fan gauge cell
   const fanCell = (lbl, val, gaugeKey, fallbackCol) => `
@@ -561,6 +582,11 @@ function panel(s, idx) {
           <div class="gc-lbl">Nozzle
             ${s.nozzle_type ? `<span style="font-size:9px;font-weight:400;display:block;margin-top:1px">${s.nozzle_type}</span>` : ''}
           </div>
+          ${hasDualTemp ? `
+          <div class="vg-outer" style="gap:5px">
+            ${dualBar(nLTemp, nLTgt, 'L', slots ? slots[0].color : null)}
+            ${dualBar(nRTemp, nRTgt, 'R', slots ? slots[1].color : null)}
+          </div>` : `
           <div class="vg-outer">
             <div class="vg-bar">
               <div class="vg-fill" style="height:${nFPct}%;background:${nozzleCol};box-shadow:0 -2px 8px ${nozzleCol}55"></div>
@@ -572,7 +598,7 @@ function panel(s, idx) {
           ${slots ? `<div class="vg-dots">
             <div class="vg-dot" title="Left nozzle"  style="background:${slots[0].color}"></div>
             <div class="vg-dot" title="Right nozzle" style="background:${slots[1].color}"></div>
-          </div>` : ''}
+          </div>` : ''}`}
         </div>
         <div class="gc">
           <div class="gc-lbl">Bed</div>

@@ -115,6 +115,10 @@ def default_state(printer_cfg):
         "progress":       0,
         "nozzle_temp":    0.0,
         "nozzle_target":  0.0,
+        "nozzle_temp_l":  None,   # left nozzle — populated if H2D sends separate temps
+        "nozzle_temp_r":  None,   # right nozzle
+        "nozzle_target_l": None,
+        "nozzle_target_r": None,
         "bed_temp":       0.0,
         "bed_target":     0.0,
         "chamber_temp":   0.0,
@@ -138,9 +142,10 @@ def default_state(printer_cfg):
         "ams_job_slots":  [],
     }
 
-state_lock     = threading.Lock()
-active_clients = {}  # printer_id -> active mqtt client
-printer_states = {cfg["id"]: default_state(cfg) for cfg in CONFIG["printers"]}
+state_lock      = threading.Lock()
+active_clients  = {}  # printer_id -> active mqtt client
+printer_states  = {cfg["id"]: default_state(cfg) for cfg in CONFIG["printers"]}
+last_payloads   = {}  # printer_id -> last raw print payload (for debug)
 
 # ---------------------------------------------------------------------------
 # Flask + SocketIO
@@ -420,8 +425,47 @@ STAGE_MAP = {
 
 def parse_print_message(state, msg):
     p = msg.get('print', {})
+
+    # Store raw payload for debug inspection
+    last_payloads[state['id']] = p
+
     if 'nozzle_temper'        in p: state['nozzle_temp']    = round(float(p['nozzle_temper']), 1)
     if 'nozzle_target_temper' in p: state['nozzle_target']  = round(float(p['nozzle_target_temper']), 1)
+
+    # Dual nozzle temps — try known H2D field variants
+    for lkey, rkey in [
+        ('left_nozzle_temper',  'right_nozzle_temper'),
+        ('nozzle_temper_l',     'nozzle_temper_r'),
+        ('nozzle_temper0',      'nozzle_temper1'),
+        ('nozzle_temp_left',    'nozzle_temp_right'),
+    ]:
+        if lkey in p or rkey in p:
+            if lkey in p: state['nozzle_temp_l'] = round(float(p[lkey]), 1)
+            if rkey in p: state['nozzle_temp_r'] = round(float(p[rkey]), 1)
+            break
+    for lkey, rkey in [
+        ('left_nozzle_target_temper',  'right_nozzle_target_temper'),
+        ('nozzle_target_temper_l',     'nozzle_target_temper_r'),
+        ('nozzle_target_temper0',      'nozzle_target_temper1'),
+    ]:
+        if lkey in p or rkey in p:
+            if lkey in p: state['nozzle_target_l'] = round(float(p[lkey]), 1)
+            if rkey in p: state['nozzle_target_r'] = round(float(p[rkey]), 1)
+            break
+
+    # Log any unhandled field that looks temperature/nozzle related — helps identify H2D fields
+    _known = {
+        'nozzle_temper','nozzle_target_temper','bed_temper','bed_target_temper',
+        'chamber_temper','nozzle_type','nozzle_diameter',
+        'left_nozzle_temper','right_nozzle_temper','nozzle_temper_l','nozzle_temper_r',
+        'nozzle_temper0','nozzle_temper1','nozzle_temp_left','nozzle_temp_right',
+        'left_nozzle_target_temper','right_nozzle_target_temper',
+        'nozzle_target_temper_l','nozzle_target_temper_r',
+        'nozzle_target_temper0','nozzle_target_temper1',
+    }
+    for k, v in p.items():
+        if ('nozzle' in k or 'temper' in k) and k not in _known:
+            log.info(f"[{state['id']}] UNKNOWN nozzle/temp field: {k} = {v!r}")
     if 'bed_temper'           in p: state['bed_temp']        = round(float(p['bed_temper']), 1)
     if 'bed_target_temper'    in p: state['bed_target']      = round(float(p['bed_target_temper']), 1)
     if 'chamber_temper'       in p: state['chamber_temp']    = round(float(p['chamber_temper']), 1)
@@ -479,13 +523,29 @@ def parse_print_message(state, msg):
             for tray in state['ams_trays']:
                 tray['in_job'] = tray['id'] in active_slots
 
-    # Parse virtual slots (left/right nozzle filament info)
+    # Parse virtual slots (left/right nozzle filament info + possible temps)
     if 'vir_slot' in p:
         slots = p['vir_slot']
         vir = []
-        for s in slots[:2]:
+        for i, s in enumerate(slots[:2]):
             color     = s.get('tray_color', '00000000')
             hex_color = f"#{color[:6]}" if len(color) >= 6 else '#888888'
+            # Capture any temperature field present in vir_slot entries
+            slot_temp   = s.get('nozzle_temper') or s.get('temper') or s.get('temp')
+            slot_target = s.get('nozzle_target_temper') or s.get('target_temper')
+            if slot_temp is not None:
+                key = 'nozzle_temp_l' if i == 0 else 'nozzle_temp_r'
+                state[key] = round(float(slot_temp), 1)
+                log.info(f"[{state['id']}] vir_slot[{i}] temp={slot_temp}")
+            if slot_target is not None:
+                key = 'nozzle_target_l' if i == 0 else 'nozzle_target_r'
+                state[key] = round(float(slot_target), 1)
+            # Log any unrecognised vir_slot fields for discovery
+            for k, v in s.items():
+                if k not in {'tray_color','tray_type','tray_diameter','id',
+                             'nozzle_temper','temper','temp',
+                             'nozzle_target_temper','target_temper'}:
+                    log.info(f"[{state['id']}] vir_slot[{i}] unknown field: {k} = {v!r}")
             vir.append({
                 'color':    hex_color,
                 'type':     s.get('tray_type', ''),
@@ -849,6 +909,19 @@ def api_network_ipconfig_save():
             return jsonify({"ok": False, "error": result.stderr.strip()})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
+
+# ---------------------------------------------------------------------------
+# API — Debug: last raw MQTT print payload (field discovery)
+# ---------------------------------------------------------------------------
+@app.route('/api/debug/last_payload/<printer_id>')
+def api_debug_last_payload(printer_id):
+    payload = last_payloads.get(printer_id)
+    if payload is None:
+        return jsonify({"ok": False, "error": "No payload received yet"})
+    # Return only scalar/simple values to keep it readable; skip large nested objects
+    simple = {k: v for k, v in payload.items()
+              if not isinstance(v, (dict, list)) or k in ('vir_slot',)}
+    return jsonify({"ok": True, "printer_id": printer_id, "fields": simple})
 
 # ---------------------------------------------------------------------------
 # API — Clear printer errors (manual dismiss for stale cloud MQTT errors)
