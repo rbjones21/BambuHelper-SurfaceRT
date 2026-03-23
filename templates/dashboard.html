@@ -102,7 +102,7 @@
   .eta-label { font-size: 22px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
 
   /* ── Progress LED bar ── */
-  .led-sect  { padding: 8px 14px 6px; flex-shrink: 0; }
+  .led-sect  { padding: 5px 14px 4px; flex-shrink: 0; }
   .led-row1  { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
   .led-fn    { font-family: 'Share Tech Mono', monospace; font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 66%; }
   .led-pct   { font-family: 'Share Tech Mono', monospace; font-size: 32px; font-weight: 700; color: var(--text); line-height: 1; }
@@ -114,8 +114,8 @@
   @keyframes tip { 0%,100%{opacity:1} 50%{opacity:0.35} }
 
   /* ── Gauge grid — 3 cols (6 in single mode) ── */
-  .gg  { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 6px 10px; flex: 1; min-height: 0; }
-  .gc  { background: var(--track); border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 8px 4px 10px; overflow: hidden; }
+  .gg  { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 4px 10px; flex: 1; min-height: 0; }
+  .gc  { background: var(--track); border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 5px 4px 7px; overflow: hidden; }
   .gc-lbl { font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
 
   /* Arc gauge */
@@ -127,12 +127,12 @@
   .arc-tgt     { font-family: 'Share Tech Mono', monospace; font-size: clamp(10px, 1.2vw, 13px); color: var(--muted); }
 
   /* ── AMS tray strip ── */
-  .ams-sect   { padding: 6px 10px; border-top: 1px solid var(--bdr); flex-shrink: 0; }
-  .ams-lbl    { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .ams-sect   { padding: 3px 10px 4px; border-top: 1px solid var(--bdr); flex-shrink: 0; }
+  .ams-lbl    { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
   .ams-trays  { display: flex; gap: 4px; }
-  .ams-tray   { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-  .ams-color  { width: 100%; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.2); }
-  .ams-remain { font-size: 9px; color: var(--muted); font-family: 'Share Tech Mono', monospace; }
+  .ams-tray   { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+  .ams-color  { width: 100%; height: 11px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.2); }
+  .ams-remain { font-size: 11px; color: var(--muted); font-family: 'Share Tech Mono', monospace; }
 
   /* ── Error strip ── */
   .err-strip { padding: 5px 14px; background: rgba(255,34,68,0.1); border-top: 1px solid rgba(255,34,68,0.2); font-size: 13px; color: #ff4455; font-family: 'Share Tech Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
@@ -143,8 +143,8 @@
   .hms-code:hover { background: rgba(255,34,68,0.12); }
 
   /* ── AMS filament type label + environment ── */
-  .ams-type { font-size: 8px; color: var(--muted); font-family: 'Share Tech Mono', monospace; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; line-height: 1.2; }
-  .ams-env  { font-size: 9px; color: var(--muted); font-family: 'Share Tech Mono', monospace; text-align: right; margin-top: 3px; letter-spacing: 0.5px; }
+  .ams-type { font-size: 11px; color: var(--muted); font-family: 'Share Tech Mono', monospace; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; line-height: 1.2; }
+  .ams-env  { font-size: 11px; color: var(--muted); font-family: 'Share Tech Mono', monospace; text-align: right; margin-top: 1px; letter-spacing: 0.5px; }
 
   /* ── Battery indicator ── */
   .batt-status          { display: flex; align-items: center; gap: 5px; font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--muted); }
@@ -175,8 +175,10 @@
   #printers.single .arc-v       { font-size: clamp(22px, 3vw, 36px) !important; }
   #printers.single .arc-u       { font-size: clamp(13px, 1.6vw, 18px) !important; }
   #printers.single .arc-tgt     { font-size: clamp(11px, 1.3vw, 15px) !important; }
-  #printers.single .ams-color   { height: 20px; }
-  #printers.single .ams-remain  { font-size: 11px; }
+  #printers.single .ams-color   { height: 16px; }
+  #printers.single .ams-remain  { font-size: 13px; }
+  #printers.single .ams-type    { font-size: 13px; }
+  #printers.single .ams-env     { font-size: 13px; }
 
   /* ── Idle clock overlay (shown when no active prints) ── */
   #idle-clock {
