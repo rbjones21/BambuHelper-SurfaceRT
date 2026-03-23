@@ -146,6 +146,7 @@ state_lock      = threading.Lock()
 active_clients  = {}  # printer_id -> active mqtt client
 printer_states  = {cfg["id"]: default_state(cfg) for cfg in CONFIG["printers"]}
 last_payloads   = {}  # printer_id -> last raw print payload (for debug)
+last_rich_payloads = {}  # printer_id -> last payload that contained nozzle_temper (for debug)
 
 # ---------------------------------------------------------------------------
 # Flask + SocketIO
@@ -428,6 +429,9 @@ def parse_print_message(state, msg):
 
     # Store raw payload for debug inspection
     last_payloads[state['id']] = p
+    # Also keep the last payload that contained temperature data (not overwritten by heartbeats)
+    if 'nozzle_temper' in p:
+        last_rich_payloads[state['id']] = p
 
     if 'nozzle_temper'        in p: state['nozzle_temp']    = round(float(p['nozzle_temper']), 1)
     if 'nozzle_target_temper' in p: state['nozzle_target']  = round(float(p['nozzle_target_temper']), 1)
@@ -915,13 +919,14 @@ def api_network_ipconfig_save():
 # ---------------------------------------------------------------------------
 @app.route('/api/debug/last_payload/<printer_id>')
 def api_debug_last_payload(printer_id):
-    payload = last_payloads.get(printer_id)
+    payload = last_rich_payloads.get(printer_id) or last_payloads.get(printer_id)
     if payload is None:
         return jsonify({"ok": False, "error": "No payload received yet"})
-    # Return only scalar/simple values to keep it readable; skip large nested objects
+    # Scalar fields + vir_slot for inspection
     simple = {k: v for k, v in payload.items()
               if not isinstance(v, (dict, list)) or k in ('vir_slot',)}
-    return jsonify({"ok": True, "printer_id": printer_id, "fields": simple})
+    return jsonify({"ok": True, "printer_id": printer_id,
+                    "from_rich": printer_id in last_rich_payloads, "fields": simple})
 
 # ---------------------------------------------------------------------------
 # API — Clear printer errors (manual dismiss for stale cloud MQTT errors)
