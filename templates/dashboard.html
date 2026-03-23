@@ -127,12 +127,18 @@
   .arc-tgt     { font-family: 'Share Tech Mono', monospace; font-size: clamp(10px, 1.2vw, 13px); color: var(--muted); }
 
   /* ── AMS tray strip ── */
-  .ams-sect   { padding: 3px 10px 4px; border-top: 1px solid var(--bdr); flex-shrink: 0; }
-  .ams-lbl    { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
-  .ams-trays  { display: flex; gap: 4px; }
-  .ams-tray   { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; }
-  .ams-color  { width: 100%; height: 11px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.2); }
-  .ams-remain { font-size: 11px; color: var(--muted); font-family: 'Share Tech Mono', monospace; }
+  .ams-sect       { padding: 3px 10px 4px; border-top: 1px solid var(--bdr); flex-shrink: 0; }
+  .ams-unit       { margin-bottom: 3px; }
+  .ams-unit-hdr   { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+  .ams-unit-lbl   { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  .ams-trays      { display: flex; gap: 4px; }
+  .ams-tray       { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; }
+  .ams-color      { width: 100%; height: 11px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.2); }
+  .ams-remain     { font-size: 11px; color: var(--muted); font-family: 'Share Tech Mono', monospace; }
+  .ams-nozzle     { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--bdr); margin-top: 3px; padding-top: 3px; flex-wrap: wrap; }
+  .ams-nozzle-slot{ display: flex; align-items: center; gap: 3px; }
+  .ams-nozzle-dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid rgba(128,128,128,0.35); flex-shrink: 0; }
+  .ams-nozzle-lbl { font-size: 11px; color: var(--muted); font-family: 'Share Tech Mono', monospace; }
 
   /* ── Error strip ── */
   .err-strip { padding: 5px 14px; background: rgba(255,34,68,0.1); border-top: 1px solid rgba(255,34,68,0.2); font-size: 13px; color: #ff4455; font-family: 'Share Tech Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
@@ -190,10 +196,12 @@
   #printers.single .arc-v       { font-size: clamp(22px, 3vw, 36px) !important; }
   #printers.single .arc-u       { font-size: clamp(13px, 1.6vw, 18px) !important; }
   #printers.single .arc-tgt     { font-size: clamp(11px, 1.3vw, 15px) !important; }
-  #printers.single .ams-color   { height: 16px; }
-  #printers.single .ams-remain  { font-size: 13px; }
-  #printers.single .ams-type    { font-size: 13px; }
-  #printers.single .ams-env     { font-size: 13px; }
+  #printers.single .ams-color      { height: 16px; }
+  #printers.single .ams-remain     { font-size: 13px; }
+  #printers.single .ams-type       { font-size: 13px; }
+  #printers.single .ams-env        { font-size: 13px; }
+  #printers.single .ams-nozzle-lbl { font-size: 13px; }
+  #printers.single .ams-nozzle-dot { width: 11px; height: 11px; }
 
   /* ── Idle clock overlay (shown when no active prints) ── */
   #idle-clock {
@@ -439,46 +447,75 @@ function panel(s, idx) {
     </div>`;
   const errStrip = errHtml;
 
-  // AMS tray strip — highlights active (state=24) and in-job trays
-  // Collect per-AMS-unit temp/humidity for display below the strip
-  const amsEnv = (() => {
-    if (!s.ams_trays || !s.ams_trays.length) return '';
-    const seen = new Set(), parts = [];
-    s.ams_trays.forEach(t => {
-      const unit = t.id.split('-')[0];
-      if (!seen.has(unit)) {
-        seen.add(unit);
-        const temp = t.temp ? `${parseFloat(t.temp).toFixed(0)}°C` : null;
-        const hum  = t.humidity ? `H${t.humidity}` : null;
-        if (temp || hum) parts.push([temp, hum].filter(Boolean).join(' · '));
-      }
-    });
-    return parts.length ? `<div class="ams-env">${parts.join(' | ')}</div>` : '';
-  })();
+  // AMS — grouped by unit, 4 slots each, with per-unit temp/humidity and nozzle row
+  const amsSection = (() => {
+    const trays = s.ams_trays || [];
+    if (!trays.length) return '';
 
-  const amsSection = s.ams_trays && s.ams_trays.length > 0 ? `
-    <div class="ams-sect">
-      <div class="ams-lbl">AMS</div>
-      <div class="ams-trays">
-        ${s.ams_trays.map(t => `
-          <div class="ams-tray" title="${t.name||t.type} ${t.remain>=0?t.remain+'%':''}">
-            <div class="ams-color" style="background:${t.color};${
-              t.state === 10
-                ? 'opacity:0.2;'
-                : t.active
-                  ? `border:2px solid ${col};`
-                  : t.in_job
-                    ? `border:2px solid ${col};`
-                    : 'border:2px solid transparent;'
-            }"></div>
-            <div class="ams-remain" style="color:${t.active||t.in_job ? col : 'var(--muted)'};font-weight:${t.active?'700':'400'};">
-              ${t.active ? '▶' : ''}${t.remain >= 0 ? t.remain+'%' : '--'}
-            </div>
-            ${filamentShort(t.name, t.type) ? `<div class="ams-type">${filamentShort(t.name, t.type)}</div>` : ''}
-          </div>`).join('')}
-      </div>
-      ${amsEnv}
-    </div>` : '';
+    // Group trays by AMS unit ID
+    const units = {};
+    trays.forEach(t => {
+      const uid = t.id.split('-')[0];
+      if (!units[uid]) units[uid] = [];
+      units[uid].push(t);
+    });
+
+    const unitHtml = Object.keys(units).sort().map(uid => {
+      const uTrays = units[uid];
+      const first  = uTrays[0];
+      const temp   = first?.temp     ? `${parseFloat(first.temp).toFixed(0)}\u00b0C` : null;
+      const hum    = first?.humidity ? `H${first.humidity}` : null;
+      const env    = [temp, hum].filter(Boolean).join(' \u00b7 ');
+      // Always show 4 slots; pad missing ones with null
+      const slots  = Array.from({length: 4}, (_, i) =>
+        uTrays.find(t => t.id === `${uid}-${i}`) || null
+      );
+      return `<div class="ams-unit">
+        <div class="ams-unit-hdr">
+          <span class="ams-unit-lbl">AMS ${parseInt(uid)+1}</span>
+          ${env ? `<span class="ams-env">${env}</span>` : ''}
+        </div>
+        <div class="ams-trays">
+          ${slots.map(t => t ? `
+            <div class="ams-tray" title="${t.name||t.type||''} ${t.remain>=0?t.remain+'%':''}">
+              <div class="ams-color" style="background:${t.color};${
+                t.state === 10 ? 'opacity:0.2;' :
+                t.active  ? `border:2px solid ${col};box-shadow:0 0 5px ${col}60;` :
+                t.in_job  ? `border:2px solid ${col};` :
+                            'border:2px solid transparent;'
+              }"></div>
+              <div class="ams-remain" style="color:${t.active||t.in_job?col:'var(--muted)'};font-weight:${t.active?'700':'400'};">
+                ${t.active?'&#9654;':''}${t.remain>=0?t.remain+'%':'--'}
+              </div>
+              <div class="ams-type">${filamentShort(t.name,t.type)||'&nbsp;'}</div>
+            </div>` : `
+            <div class="ams-tray">
+              <div class="ams-color" style="background:var(--muted);opacity:0.12;border:1px dashed rgba(255,255,255,0.08);"></div>
+              <div class="ams-remain" style="opacity:0.3">--</div>
+              <div class="ams-type">&nbsp;</div>
+            </div>`
+          ).join('')}
+        </div>
+      </div>`;
+    }).join('');
+
+    // Nozzle active filament row — show what's physically loaded in each nozzle
+    const virSlots = (s.vir_slots || []).filter(vs => !vs.empty);
+    const nozzleHtml = virSlots.length ? `
+      <div class="ams-nozzle">
+        <span class="ams-unit-lbl" style="flex-shrink:0">Nozzle</span>
+        ${virSlots.map((vs, i) => {
+          const label = s.vir_slots.length > 1 ? ['L','R'][i]+':&nbsp;' : '';
+          const name  = filamentShort('', vs.type) || vs.type || '';
+          return `<div class="ams-nozzle-slot">
+            <div class="ams-nozzle-dot" style="background:${vs.color}"></div>
+            <span class="ams-nozzle-lbl">${label}${name||vs.color}</span>
+          </div>`;
+        }).join('<span style="color:var(--muted);opacity:0.4">|</span>')}
+      </div>` : '';
+
+    return `<div class="ams-sect">${unitHtml}${nozzleHtml}</div>`;
+  })();
 
   // ETA — arrival time of print completion
   const etaClock = s.time_remaining > 0

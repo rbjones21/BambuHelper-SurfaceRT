@@ -579,6 +579,8 @@ def parse_print_message(state, msg):
         for i, s in enumerate(slots[:2]):
             color     = s.get('tray_color', '00000000')
             hex_color = f"#{color[:6]}" if len(color) >= 6 else '#888888'
+            # Alpha == 00 means no filament loaded in this nozzle
+            is_empty  = len(color) >= 8 and color[6:8].upper() == '00'
             # Capture any temperature field present in vir_slot entries
             slot_temp   = s.get('nozzle_temper') or s.get('temper') or s.get('temp')
             slot_target = s.get('nozzle_target_temper') or s.get('target_temper')
@@ -600,6 +602,7 @@ def parse_print_message(state, msg):
                 'type':     s.get('tray_type', ''),
                 'diameter': s.get('tray_diameter', '1.75'),
                 'id':       s.get('id', ''),
+                'empty':    is_empty,
             })
         state['vir_slots'] = vir
 
