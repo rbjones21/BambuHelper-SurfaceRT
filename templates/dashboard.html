@@ -66,7 +66,20 @@
   .pnl          { background: var(--panel); border: 1px solid var(--bdr); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; position: relative; transition: border-color 0.4s; }
   .pnl.printing { border-color: var(--ac); box-shadow: inset 0 0 0 1px var(--ac); }
   @keyframes flash-err { 0%,100%{ border-color:#ff2244; box-shadow:inset 0 0 0 1px #ff2244; } 50%{ border-color:#ff5566; box-shadow:inset 0 0 0 1px #ff5566, 0 0 14px #ff224428; } }
-  .pnl.error    { animation: flash-err 2s ease-in-out infinite; }
+  @keyframes pulse-err  { 0%,100%{ opacity:.92; } 50%{ opacity:.75; } }
+  @keyframes pulse-warn { 0%,100%{ opacity:.92; } 50%{ opacity:.72; } }
+  .pnl.error  { animation: flash-err 2s ease-in-out infinite; }
+  /* State overlay */
+  .pnl-body    { position:relative; flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+  .pnl-overlay { position:absolute; inset:0; z-index:10; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; border-radius:8px 8px 0 0; pointer-events:none; }
+  .pnl-overlay.error  { background:rgba(180,10,30,0.55); animation:pulse-err  2.5s ease-in-out infinite; }
+  .pnl-overlay.paused { background:rgba(180,120,0,0.50); animation:pulse-warn 2.5s ease-in-out infinite; }
+  .pnl-overlay-icon  { font-size:48px; line-height:1; }
+  .pnl-overlay-lbl   { font-size:22px; font-weight:800; letter-spacing:3px; text-transform:uppercase; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,0.6); }
+  .pnl-overlay-codes { display:flex; flex-direction:column; align-items:center; gap:6px; margin-top:8px; }
+  .pnl-overlay-code  { font-family:'Share Tech Mono',monospace; font-size:15px; color:#fff; letter-spacing:1.5px; background:rgba(0,0,0,0.45); border:1px solid rgba(255,255,255,0.25); border-radius:5px; padding:6px 14px; pointer-events:auto; cursor:pointer; }
+  .pnl-overlay-code:hover { background:rgba(0,0,0,0.65); border-color:rgba(255,255,255,0.5); }
+  .pnl-overlay-hint  { font-size:10px; color:rgba(255,255,255,0.5); letter-spacing:1px; margin-top:-2px; }
 
   /* Panel header row */
   .pnl-hdr  { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; border-bottom: 1px solid var(--bdr); flex-shrink: 0; }
@@ -114,12 +127,12 @@
   @keyframes tip { 0%,100%{opacity:1} 50%{opacity:0.35} }
 
   /* ── Gauge grid — 3 cols (6 in single mode) ── */
-  .gg  { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 4px 10px; flex: 1; min-height: 0; }
-  .gc  { background: var(--track); border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 5px 4px 7px; overflow: hidden; }
-  .gc-lbl { font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+  .gg  { display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; gap: 5px; padding: 3px 8px; flex: 1; min-height: 0; overflow: hidden; }
+  .gc  { background: var(--track); border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px; padding: 3px 4px 5px; overflow: hidden; min-height: 0; }
+  .gc-lbl { font-size: 14px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--text); }
 
   /* Arc gauge */
-  .arc-box     { position: relative; width: 100%; }
+  .arc-box     { position: relative; width: 85%; }
   .arc-box svg { width: 100%; height: auto; display: block; }
   .arc-over    { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
   .arc-v       { font-family: 'Share Tech Mono', monospace; font-size: clamp(18px, 2.8vw, 30px); font-weight: 700; color: var(--text); line-height: 1; }
@@ -130,11 +143,13 @@
   .ams-sect       { padding: 3px 10px 4px; border-top: 1px solid var(--bdr); flex-shrink: 0; }
   .ams-unit       { margin-bottom: 3px; }
   .ams-unit-hdr   { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
-  .ams-unit-lbl   { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  .ams-unit-lbl   { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--text); font-weight: 700; }
   .ams-trays      { display: flex; gap: 4px; }
   .ams-tray       { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; }
   .ams-color      { width: 100%; height: 11px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.2); }
-  .ams-remain     { font-size: 11px; color: var(--muted); font-family: 'Share Tech Mono', monospace; }
+  .ams-arrow      { font-size: 10px; line-height: 1; visibility: hidden; }
+  .ams-arrow.on   { visibility: visible; }
+  .ams-info       { font-size: 13px; color: var(--muted); font-family: 'Share Tech Mono', monospace; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; line-height: 1.3; }
   .ams-nozzle     { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--bdr); margin-top: 3px; padding-top: 3px; flex-wrap: wrap; }
   .ams-nozzle-slot{ display: flex; align-items: center; gap: 3px; }
   .ams-nozzle-dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid rgba(128,128,128,0.35); flex-shrink: 0; }
@@ -157,15 +172,22 @@
   #printers.single .vg-sub { font-size: clamp(12px, 1.4vw, 15px) !important; }
 
   /* ── HMS error codes ── */
-  .hms-strip      { padding: 4px 14px; background: rgba(255,34,68,0.06); border-top: 1px solid rgba(255,34,68,0.12); display: flex; flex-wrap: wrap; align-items: center; gap: 4px; flex-shrink: 0; }
-  .hms-code       { font-size: 10px; color: #ff6677; font-family: 'Share Tech Mono', monospace; border: 1px solid rgba(255,34,68,0.3); border-radius: 3px; padding: 1px 6px; text-decoration: none; letter-spacing: 0.5px; }
+  .hms-strip      { padding: 4px 14px; background: rgba(255,34,68,0.06); border-top: 1px solid rgba(255,34,68,0.12); display: flex; flex-wrap: wrap; align-items: center; gap: 4px; flex-shrink: 0; position: relative; z-index: 11; }
+  .hms-code       { font-size: 10px; color: #ff6677; font-family: 'Share Tech Mono', monospace; border: 1px solid rgba(255,34,68,0.3); border-radius: 3px; padding: 1px 6px; letter-spacing: 0.5px; cursor: pointer; }
   .hms-code:hover { background: rgba(255,34,68,0.12); }
+  /* QR overlay */
+  #qr-overlay     { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 999; align-items: center; justify-content: center; }
+  #qr-overlay.vis { display: flex; }
+  #qr-box         { background: #1a2035; border: 1px solid rgba(255,34,68,0.35); border-radius: 10px; padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  #qr-code-lbl    { font-family: 'Share Tech Mono', monospace; font-size: 13px; color: #ff6677; letter-spacing: 1px; }
+  #qr-img         { width: 180px; height: 180px; border-radius: 4px; background: #fff; }
+  #qr-close       { font-size: 12px; color: var(--muted); cursor: pointer; padding: 4px 12px; border: 1px solid var(--bdr); border-radius: 4px; background: none; margin-top: 2px; }
+  #qr-close:hover { color: var(--text); }
   .hms-dismiss    { margin-left: auto; font-size: 14px; color: rgba(255,100,119,0.6); cursor: pointer; padding: 0 4px; line-height: 1; border: none; background: none; }
   .hms-dismiss:hover { color: #ff6677; }
 
-  /* ── AMS filament type label + environment ── */
-  .ams-type { font-size: 11px; color: var(--muted); font-family: 'Share Tech Mono', monospace; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; line-height: 1.2; }
-  .ams-env  { font-size: 11px; color: var(--muted); font-family: 'Share Tech Mono', monospace; text-align: right; margin-top: 1px; letter-spacing: 0.5px; }
+  /* ── AMS environment (temp/humidity header) ── */
+  .ams-env  { font-size: 12px; color: var(--muted); font-family: 'Share Tech Mono', monospace; text-align: right; margin-top: 1px; letter-spacing: 0.5px; }
 
   /* ── Battery indicator ── */
   .batt-status          { display: flex; align-items: center; gap: 5px; font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--muted); }
@@ -191,15 +213,14 @@
   #printers.single .led-pct     { font-size: 42px; }
   #printers.single .led-pct sup { font-size: 20px; }
   #printers.single .led-strip   { height: 16px; }
-  #printers.single .gg          { grid-template-columns: repeat(6, 1fr); gap: 8px; padding: 8px 12px; }
-  #printers.single .gc-lbl      { font-size: 15px; }
+  #printers.single .gg          { grid-template-columns: repeat(6, 1fr); grid-auto-rows: 1fr; gap: 8px; padding: 8px 12px; }
+  #printers.single .gc-lbl      { font-size: 17px; }
   #printers.single .arc-v       { font-size: clamp(22px, 3vw, 36px) !important; }
   #printers.single .arc-u       { font-size: clamp(13px, 1.6vw, 18px) !important; }
   #printers.single .arc-tgt     { font-size: clamp(11px, 1.3vw, 15px) !important; }
   #printers.single .ams-color      { height: 16px; }
-  #printers.single .ams-remain     { font-size: 13px; }
-  #printers.single .ams-type       { font-size: 13px; }
-  #printers.single .ams-env        { font-size: 13px; }
+  #printers.single .ams-info       { font-size: 15px; }
+  #printers.single .ams-env        { font-size: 14px; }
   #printers.single .ams-nozzle-lbl { font-size: 13px; }
   #printers.single .ams-nozzle-dot { width: 11px; height: 11px; }
 
@@ -227,6 +248,13 @@
 </style>
 </head>
 <body>
+<div id="qr-overlay" onclick="hideHmsQR()">
+  <div id="qr-box" onclick="event.stopPropagation()">
+    <div id="qr-code-lbl"></div>
+    <img id="qr-img" src="" alt="QR Code"/>
+    <button id="qr-close" onclick="hideHmsQR()">Close</button>
+  </div>
+</div>
 <div id="root">
   <header>
     <div class="logo">BambuHelper<em>RT</em></div>
@@ -395,14 +423,23 @@ function fmt(min) {
 }
 
 // ── Filament type decoder ─────────────────────────────────────────────────
+// Full-code overrides take priority; 3-char prefix used as fallback.
+// GFA prefix codes observed to be PLA variants in Bambu's RFID system.
 const FILAMENT_TYPE = {
-  GFL: 'PLA', GFG: 'PETG', GFA: 'ABS', GFT: 'TPU', GFB: 'PA',
-  GFC: 'PC',  GFS: 'PVA',  GFN: 'CF',  GFH: 'ASA', GFF: 'PA-CF',
-  GFI: 'PAHT', GFJ: 'PC-CF',
+  // Known full codes
+  GFL99: 'PLA',      GFL96: 'PLA Silk',  GFL00: 'PLA',
+  GFG99: 'PETG',     GFG00: 'PETG',      GFG02: 'PETG HF',
+  GFA00: 'PLA Basic', GFA01: 'PLA Matte', GFA06: 'PLA Silk+',
+  GFH99: 'ASA',      GFB99: 'PA',        GFT99: 'TPU',
+  GFC99: 'PC',       GFS99: 'PVA',
+  // 3-char prefix fallbacks
+  GFL: 'PLA',  GFG: 'PETG', GFA: 'PLA',  GFT: 'TPU',
+  GFB: 'PA',   GFC: 'PC',   GFS: 'PVA',  GFN: 'CF',
+  GFH: 'ASA',  GFF: 'PA-CF', GFI: 'PAHT', GFJ: 'PC-CF',
 };
 function filamentShort(name, type) {
   if (name) return name.replace(/^(Bambu|Generic)\s+/i, '').slice(0, 10);
-  if (type) return FILAMENT_TYPE[type.slice(0, 3)] || type.slice(0, 6);
+  if (type) return FILAMENT_TYPE[type] || FILAMENT_TYPE[type.slice(0, 3)] || type.slice(0, 6);
   return '';
 }
 
@@ -441,7 +478,7 @@ function panel(s, idx) {
   if (s.hms_errors && s.hms_errors.length)
     errHtml += `<div class="hms-strip">
       ${s.hms_errors.map(code =>
-        `<a class="hms-code" href="https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/${code}" target="_blank">${code}</a>`
+        `<span class="hms-code" onclick="showHmsQR('${code}')">${code}</span>`
       ).join('')}
       <button class="hms-dismiss" onclick="clearErrors('${s.id}')" title="Dismiss errors">✕</button>
     </div>`;
@@ -476,25 +513,29 @@ function panel(s, idx) {
           ${env ? `<span class="ams-env">${env}</span>` : ''}
         </div>
         <div class="ams-trays">
-          ${slots.map(t => t ? `
-            <div class="ams-tray" title="${t.name||t.type||''} ${t.remain>=0?t.remain+'%':''}">
+          ${slots.map(t => {
+            const isActive = t && t.active;
+            const inJob    = t && t.in_job;
+            const typeLabel = t ? (filamentShort('', t.type) || t.type || '?') : '--';
+            return t ? `
+            <div class="ams-tray" title="${typeLabel} ${t.remain>=0?t.remain+'%':''}">
+              <div class="ams-arrow ${isActive?'on':inJob?'on':''}" style="color:${col};opacity:${isActive?'1':'0.45'}">&#9660;</div>
               <div class="ams-color" style="background:${t.color};${
                 t.state === 10 ? 'opacity:0.2;' :
-                t.active  ? `border:2px solid ${col};box-shadow:0 0 5px ${col}60;` :
-                t.in_job  ? `border:2px solid ${col};` :
+                isActive  ? `border:2px solid ${col};box-shadow:0 0 6px ${col}80;` :
+                inJob     ? `border:2px solid ${col};` :
                             'border:2px solid transparent;'
               }"></div>
-              <div class="ams-remain" style="color:${t.active||t.in_job?col:'var(--muted)'};font-weight:${t.active?'700':'400'};">
-                ${t.active?'&#9654;':''}${t.remain>=0?t.remain+'%':'--'}
+              <div class="ams-info" style="color:${isActive||inJob?col:'var(--muted)'};font-weight:${isActive?'700':'400'};">
+                ${typeLabel}${t.remain>=0?' \u00b7 '+t.remain+'%':''}
               </div>
-              <div class="ams-type">${filamentShort(t.name,t.type)||'&nbsp;'}</div>
             </div>` : `
             <div class="ams-tray">
+              <div class="ams-arrow"></div>
               <div class="ams-color" style="background:var(--muted);opacity:0.12;border:1px dashed rgba(255,255,255,0.08);"></div>
-              <div class="ams-remain" style="opacity:0.3">--</div>
-              <div class="ams-type">&nbsp;</div>
-            </div>`
-          ).join('')}
+              <div class="ams-info" style="opacity:0.3">--</div>
+            </div>`;
+          }).join('')}
         </div>
       </div>`;
     }).join('');
@@ -597,8 +638,23 @@ function panel(s, idx) {
     : (s.errors && s.errors.length) ? 'err'
     : sc === 'paused' ? 'warn' : 'ok';
 
+  const stateOverlay = (sc === 'error' || sc === 'paused') ? (() => {
+    const isErr   = sc === 'error';
+    const icon    = isErr ? '⚠' : '⏸';
+    const lbl     = isErr ? 'Error' : 'Paused';
+    const codes   = (s.hms_errors || []).map(c =>
+      `<div class="pnl-overlay-code" onclick="showHmsQR('${c}')">${c}</div>`).join('');
+    return `<div class="pnl-overlay ${sc}">
+      <div class="pnl-overlay-icon">${icon}</div>
+      <div class="pnl-overlay-lbl">${lbl}</div>
+      ${codes ? `<div class="pnl-overlay-codes">${codes}<div class="pnl-overlay-hint">TAP CODE FOR QR</div></div>` : ''}
+    </div>`;
+  })() : '';
+
   return `
     <div class="pnl ${sc}" style="--ac:${col}">
+      <div class="pnl-body">
+      ${stateOverlay}
       ${offline}
       <div class="pnl-hdr">
         <div style="display:flex;align-items:center;gap:8px">
@@ -664,6 +720,7 @@ function panel(s, idx) {
         ${fanCell('Exhaust',  s.fan_chamber, 'fan_cham', '#aa66ff')}
       </div>
       ${amsSection}
+      </div>
       ${errStrip}
     </div>`;
 }
@@ -739,6 +796,19 @@ async function updateBattery() {
 }
 setInterval(updateBattery, 60000);
 updateBattery();
+
+// ── HMS QR code overlay ───────────────────────────────────────────────────
+function showHmsQR(code) {
+  const url = `https://www.google.com/search?q=Bambu+Lab+HMS+${code}`;
+  document.getElementById('qr-code-lbl').textContent = code;
+  document.getElementById('qr-img').src =
+    `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}`;
+  document.getElementById('qr-overlay').classList.add('vis');
+}
+function hideHmsQR() {
+  document.getElementById('qr-overlay').classList.remove('vis');
+  document.getElementById('qr-img').src = '';
+}
 
 // ── Clear printer errors (dismiss stale HMS codes) ───────────────────────
 async function clearErrors(printerId) {

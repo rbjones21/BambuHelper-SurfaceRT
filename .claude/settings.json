@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh rjones@10.0.100.208 \"sudo systemctl restart bambuhelper && sleep 6 && curl -s http://localhost:5000/api/debug/last_payload/printer1\")",
+      "Bash(ssh rjones@10.0.100.208 \"sleep 10 && curl -s http://localhost:5000/api/debug/last_payload/printer1\")",
+      "Bash(ssh rjones@10.0.100.208 \"cd /opt/bambuhelper && git pull && sudo systemctl restart bambuhelper && sleep 15 && curl -s http://localhost:5000/api/debug/last_payload/printer1\")"
+    ]
+  }
+}

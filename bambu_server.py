@@ -166,6 +166,7 @@ def default_state(printer_cfg):
         "vir_slots":      [],
         "ams_trays":      [],
         "ams_job_slots":  [],
+        "ams_active_id":  None,  # last known active tray ID (persisted across payloads)
     }
 
 state_lock      = threading.Lock()
@@ -173,6 +174,7 @@ active_clients  = {}  # printer_id -> active mqtt client
 printer_states  = {cfg["id"]: default_state(cfg) for cfg in CONFIG["printers"]}
 last_payloads      = {}  # printer_id -> last raw print payload (for debug)
 last_rich_payloads = {}  # printer_id -> last payload that contained nozzle_temper (for debug)
+last_ams_payloads  = {}  # printer_id -> last payload that contained ams data (for debug)
 
 # Restore persisted dismissed HMS codes into initial state
 for _pid, _codes in _dismissed_hms_store.items():
@@ -464,6 +466,8 @@ def parse_print_message(state, msg):
     # Also keep the last payload that contained temperature data (not overwritten by heartbeats)
     if 'nozzle_temper' in p:
         last_rich_payloads[state['id']] = p
+    if 'ams' in p:
+        last_ams_payloads[state['id']] = p
 
     if 'nozzle_temper' in p:
         state['nozzle_temp'] = round(float(p['nozzle_temper']), 1)
@@ -476,10 +480,11 @@ def parse_print_message(state, msg):
         if round(float(p['nozzle_target_temper']), 1) > 0:
             state['nozzle_temp_active']   = round(float(p['nozzle_temper']), 1)
             state['nozzle_target_active'] = round(float(p['nozzle_target_temper']), 1)
-    # Clear active reading when printer finishes or goes idle
+    # Clear active readings when printer finishes or goes idle
     if p.get('gcode_state') in ('IDLE', 'FINISH'):
         state['nozzle_temp_active']   = None
         state['nozzle_target_active'] = None
+        state['ams_active_id']        = None
 
     # Dual nozzle temps — try known H2D field variants
     for lkey, rkey in [
@@ -534,14 +539,34 @@ def parse_print_message(state, msg):
     
 # Parse AMS tray data
     if 'ams' in p and isinstance(p['ams'], dict):
-        ams_list = p['ams'].get('ams', [])
+        ams_data = p['ams']
+        ams_list = ams_data.get('ams', [])
+        # tray_now: flat index of the currently feeding tray.
+        # 0-3 = AMS1 slots 0-3, 4-7 = AMS2 slots 0-3, 254/255 = external/none.
+        tray_now = ams_data.get('tray_now')
+        if tray_now is not None:
+            try:
+                tray_now = int(tray_now)
+            except (ValueError, TypeError):
+                tray_now = None
+        # Update persisted active_id when tray_now is explicitly reported
+        if tray_now is not None:
+            if tray_now < 254:
+                state['ams_active_id'] = f"{tray_now // 4}-{tray_now % 4}"
+                log.info(f"[{state['id']}] AMS tray_now={tray_now} -> ams_active_id={state['ams_active_id']}")
+            else:
+                state['ams_active_id'] = None  # 254/255 = no AMS tray active
+        # Use persisted active_id so the indicator survives payloads that omit tray_now
+        active_id = state.get('ams_active_id')
         trays = []
         for ams_unit in ams_list:
             for tray in ams_unit.get('tray', []):
                 color     = tray.get('tray_color', '00000000')
                 hex_color = f"#{color[:6]}" if len(color) >= 6 else '#888888'
+                tray_id   = f"{ams_unit.get('id','0')}-{tray.get('id','0')}"
+                has_fil   = bool(tray.get('tray_info_idx'))
                 trays.append({
-                    'id':       f"{ams_unit.get('id','0')}-{tray.get('id','0')}",
+                    'id':       tray_id,
                     'color':    hex_color,
                     'type':     tray.get('tray_info_idx', ''),
                     'name':     tray.get('tray_id_name', ''),
@@ -549,7 +574,8 @@ def parse_print_message(state, msg):
                     'temp':     ams_unit.get('temp', ''),
                     'humidity': ams_unit.get('humidity', ''),
                     'state':    tray.get('state', 0),
-                    'active':   tray.get('state') == 24,
+                    'active':   (active_id is not None and tray_id == active_id) or
+                                (has_fil and tray.get('state') in (24, 27)),
                     'in_job':   False,
                 })
         if trays:
@@ -985,6 +1011,39 @@ def api_debug_last_payload(printer_id):
               if not isinstance(v, (dict, list)) or k in ('vir_slot',)}
     return jsonify({"ok": True, "printer_id": printer_id,
                     "from_rich": printer_id in last_rich_payloads, "fields": simple})
+
+@app.route('/api/debug/ams/<printer_id>')
+def api_debug_ams(printer_id):
+    payload = last_ams_payloads.get(printer_id)
+    if payload is None:
+        return jsonify({"ok": False, "error": "No AMS payload received yet"})
+    ams = payload.get('ams', {})
+    return jsonify({"ok": True, "printer_id": printer_id,
+                    "tray_now": ams.get('tray_now'),
+                    "ams_units": [
+                        {"id": u.get('id'), "temp": u.get('temp'), "humidity": u.get('humidity'),
+                         "trays": [{"id": t.get('id'), "type": t.get('tray_info_idx'),
+                                    "color": t.get('tray_color'), "remain": t.get('remain'),
+                                    "state": t.get('state')} for t in u.get('tray', [])]}
+                        for u in ams.get('ams', [])
+                    ]})
+
+# ---------------------------------------------------------------------------
+# API — Debug: force printer state (in-memory only, overwritten by next MQTT)
+# ---------------------------------------------------------------------------
+@app.route('/api/debug/force_state/<printer_id>', methods=['POST'])
+def api_debug_force_state(printer_id):
+    data = request.get_json() or {}
+    if printer_id not in printer_states:
+        return jsonify({"ok": False, "error": "Unknown printer"})
+    with state_lock:
+        state = printer_states[printer_id]
+        if 'gcode_state' in data:
+            state['gcode_state'] = data['gcode_state']
+        if 'hms_errors' in data:
+            state['hms_errors'] = data['hms_errors']
+        socketio.emit('state_update', get_all_states())
+    return jsonify({"ok": True, "printer_id": printer_id, "applied": data})
 
 # ---------------------------------------------------------------------------
 # API — Clear printer errors (manual dismiss for stale cloud MQTT errors)

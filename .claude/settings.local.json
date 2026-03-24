@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh -o ConnectTimeout=10 rjones@10.0.100.208 \"echo connected\")",
+      "Bash(ssh rjones@10.0.100.208 \"cd /opt/bambuhelper && git pull && sudo systemctl restart bambuhelper && sudo systemctl is-active bambuhelper\")",
+      "Bash(curl -s http://localhost:5000/api/state)",
+      "Bash(python3 -m json.tool)",
+      "Bash(ssh rjones@10.0.100.208 \"curl -s http://localhost:5000/api/debug/last_payload/printer1\")",
+      "Bash(ssh rjones@10.0.100.208 \"curl -s http://localhost:5000/api/debug/last_payload/printer2\")",
+      "Bash(scp templates/dashboard.html rjones@10.0.100.208:/home/rjones/BambuHelper-SurfaceRT/templates/dashboard.html)",
+      "Bash(ssh rjones@10.0.100.208 \"sudo systemctl restart bambuhelper\")",
+      "Bash(ssh rjones@10.0.100.208 \"find /home/rjones -name ''dashboard.html'' 2>/dev/null; find /opt -name ''dashboard.html'' 2>/dev/null\")"
+    ]
+  }
+}
