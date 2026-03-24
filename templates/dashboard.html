@@ -237,6 +237,10 @@
   .idle-time   { font-family: 'Share Tech Mono', monospace; font-size: clamp(80px, 15vw, 140px); font-weight: 700; color: var(--text); letter-spacing: 4px; line-height: 1; }
   .idle-date   { font-family: 'Rajdhani', sans-serif; font-size: clamp(24px, 4vw, 42px); font-weight: 500; color: var(--muted); letter-spacing: 4px; text-transform: uppercase; }
   .idle-status { font-size: 14px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); opacity: 0.5; margin-top: 8px; }
+  #idle-weather { display:flex; align-items:baseline; gap:18px; margin-top:4px; flex-wrap:wrap; justify-content:center; }
+  .wx-temp  { font-family:'Rajdhani',sans-serif; font-size:clamp(36px,6vw,64px); font-weight:700; color:var(--text); line-height:1; }
+  .wx-desc  { font-size:clamp(13px,2vw,18px); color:var(--muted); letter-spacing:2px; text-transform:uppercase; }
+  .wx-range { font-size:13px; color:var(--muted); opacity:0.6; letter-spacing:1px; }
 
   /* ── Offline overlay ── */
   .offline     { position: absolute; inset: 0; background: rgba(10,12,15,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; border-radius: 8px; z-index: 9; }
@@ -274,11 +278,22 @@
       <a href="/settings" class="cfg-btn">⚙ Settings</a>
     </div>
   </header>
+  <div id="token-warn-bar" style="display:none;background:#7a3a00;border-bottom:1px solid #ff9944;padding:8px 16px;display:none;align-items:center;gap:12px;flex-wrap:wrap">
+    <span style="color:#ff9944;font-size:13px;flex:1" id="token-warn-msg"></span>
+    <a href="/settings" style="background:#ff9944;color:#000;font-size:12px;font-weight:700;padding:5px 12px;border-radius:5px;text-decoration:none;white-space:nowrap">Update Token →</a>
+  </div>
   <div id="printers"></div>
   <div id="idle-clock">
     <div class="idle-time" id="idle-time-display">--:--</div>
     <div class="idle-date" id="idle-date-display">---</div>
     <div class="idle-status">No active prints</div>
+    <div id="idle-weather" style="display:none">
+      <span class="wx-temp" id="wx-temp"></span>
+      <div>
+        <div class="wx-desc" id="wx-desc"></div>
+        <div class="wx-range" id="wx-range"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -499,12 +514,15 @@ function panel(s, idx) {
       units[uid].push(t);
     });
 
+    // If any tray has in_job, prefer that as the active indicator (more reliable in cloud mode)
+    const anyInJob = trays.some(t => t.in_job);
+
     const unitHtml = Object.keys(units).sort().map(uid => {
       const uTrays = units[uid];
       const first  = uTrays[0];
       const temp    = first?.temp         ? `${parseFloat(first.temp).toFixed(0)}\u00b0` : null;
-      const hum     = first?.humidity_pct ? `\ud83d\udca7${first.humidity_pct}%` : (first?.humidity ? `H${first.humidity}` : null);
-      const dryLbl  = first?.drying       ? `\ud83d\udd25${first.dry_remain ? ' ' + first.dry_remain : ' Drying'}` : null;
+      const hum     = first?.humidity_pct ? `RH ${first.humidity_pct}%` : (first?.humidity ? `RH ${first.humidity}` : null);
+      const dryLbl  = first?.drying       ? `DRY${first.dry_remain ? ' ' + first.dry_remain : ''}` : null;
       const env     = [hum, temp, dryLbl].filter(Boolean).join(' \u00b7 ');
       // Always show 4 slots; pad missing ones with null
       const slots  = Array.from({length: 4}, (_, i) =>
@@ -517,20 +535,23 @@ function panel(s, idx) {
         </div>
         <div class="ams-trays">
           ${slots.map(t => {
-            const isActive = t && t.active;
-            const inJob    = t && t.in_job;
-            const typeLabel = t ? (filamentShort('', t.type) || t.type || '?') : '--';
+            const inJob     = t && t.in_job;
+            // When any tray has in_job (printing), use that as the indicator; otherwise fall back to active
+            const isActive  = anyInJob ? (t && t.in_job) : (t && t.active);
+            // state 10 = empty, state 24 = no spool/standby; also treat as empty if no filament type
+            const isEmpty   = t && (t.state === 10 || t.state === 24 || (!t.type && t.state !== 11 && t.state !== 27));
+            const typeLabel = !t ? '--' : isEmpty ? '' : (filamentShort('', t.type) || t.type || '');
             return t ? `
-            <div class="ams-tray" title="${typeLabel} ${t.remain>=0?t.remain+'%':''}">
-              <div class="ams-arrow ${isActive?'on':inJob?'on':''}" style="color:${col};opacity:${isActive?'1':'0.45'}">&#9660;</div>
-              <div class="ams-color" style="background:${t.color};${
-                t.state === 10 ? 'opacity:0.2;' :
+            <div class="ams-tray" title="${isEmpty ? 'Empty' : typeLabel + (t.remain>=0?' '+t.remain+'%':'')}">
+              <div class="ams-arrow ${isActive?'on':inJob?'on':''}" style="color:${col};opacity:${isActive?'1':'0.45'}">${isEmpty?'':'&#9660;'}</div>
+              <div class="ams-color" style="background:${isEmpty?'transparent':t.color};${
+                isEmpty   ? 'opacity:0.15;border:1px dashed rgba(255,255,255,0.12);' :
                 isActive  ? `border:2px solid ${col};box-shadow:0 0 6px ${col}80;` :
                 inJob     ? `border:2px solid ${col};` :
                             'border:2px solid transparent;'
               }"></div>
-              <div class="ams-info" style="color:${isActive||inJob?col:'var(--muted)'};font-weight:${isActive?'700':'400'};">
-                ${typeLabel}${t.remain>=0?' \u00b7 '+t.remain+'%':''}
+              <div class="ams-info" style="color:${isEmpty?'var(--muted)':isActive||inJob?col:'var(--muted)'};font-weight:${isActive?'700':'400'};opacity:${isEmpty?'0.35':'1'}">
+                ${isEmpty ? '--' : typeLabel + (t.remain>=0?' \u00b7 '+t.remain+'%':'')}
               </div>
             </div>` : `
             <div class="ams-tray">
@@ -591,29 +612,33 @@ function panel(s, idx) {
   const arcBed     = arcSVG(Math.round(s.bed_temp||0),     120, Math.round(s.bed_target||0), COLORS.bed?.arc || '#ff9944');
   const arcChamber = arcSVG(Math.round(s.chamber_temp||0),  60, 0,                           '#aa66ff');
 
-  // Nozzle — single bar normally; splits to L/R when separate temps are received
+  // Nozzle — single bar normally; splits to L/R for H2D or when separate temps arrive
   const nozzleCol  = COLORS.nozzle?.arc || col;
   const slots      = s.vir_slots && s.vir_slots.length >= 2 ? s.vir_slots : null;
-  const hasDualTemp = s.nozzle_temp_l != null && s.nozzle_temp_r != null;
+  const hasDualTemp = s.has_dual_nozzle || s.nozzle_temp_l != null || s.nozzle_temp_r != null;
   // Prefer active nozzle reading (target > 0) over idle nozzle reading (H2D cloud MQTT alternates)
   const nozzleTemp = Math.round(s.nozzle_temp_active != null ? s.nozzle_temp_active : (s.nozzle_temp || 0));
   const nozzleTgt  = Math.round(s.nozzle_target_active != null ? s.nozzle_target_active : (s.nozzle_target || 0));
   const nFPct      = Math.min(100, nozzleTemp / 300 * 100).toFixed(1);
   const nTPct      = nozzleTgt > 0 ? Math.min(100, nozzleTgt / 300 * 100).toFixed(1) : 0;
   // Dual bar helpers
-  const nLTemp = hasDualTemp ? Math.round(s.nozzle_temp_l) : nozzleTemp;
-  const nRTemp = hasDualTemp ? Math.round(s.nozzle_temp_r) : nozzleTemp;
-  const nLTgt  = hasDualTemp && s.nozzle_target_l != null ? Math.round(s.nozzle_target_l) : nozzleTgt;
-  const nRTgt  = hasDualTemp && s.nozzle_target_r != null ? Math.round(s.nozzle_target_r) : nozzleTgt;
-  const nLFPct = Math.min(100, nLTemp / 300 * 100).toFixed(1);
-  const nRFPct = Math.min(100, nRTemp / 300 * 100).toFixed(1);
-  const nLTPct = nLTgt > 0 ? Math.min(100, nLTgt / 300 * 100).toFixed(1) : 0;
-  const nRTPct = nRTgt > 0 ? Math.min(100, nRTgt / 300 * 100).toFixed(1) : 0;
-  const dualBar = (temp, tgt, label, dotCol) => {
+  // When extruder-specific data is absent, fall back to nozzle_temp/target on the side we know
+  // (cloud MQTT H2D sends only the INACTIVE nozzle via nozzle_temper; active side unknown without extruder obj)
+  const nozzleActiveSide = s.nozzle_active_side || null;  // 'L', 'R', or null
+  const noSideData = s.nozzle_temp_l == null && s.nozzle_temp_r == null;
+  // If active side known: put fallback on that side; otherwise put it on L by default
+  const fallbackOnL = nozzleActiveSide !== 'R';
+  const nLTemp = Math.round(s.nozzle_temp_l != null ? s.nozzle_temp_l : (noSideData && fallbackOnL ? nozzleTemp : 0));
+  const nRTemp = Math.round(s.nozzle_temp_r != null ? s.nozzle_temp_r : (noSideData && !fallbackOnL ? nozzleTemp : 0));
+  const nLTgt  = s.nozzle_target_l != null ? Math.round(s.nozzle_target_l) : (noSideData && fallbackOnL ? nozzleTgt : 0);
+  const nRTgt  = s.nozzle_target_r != null ? Math.round(s.nozzle_target_r) : (noSideData && !fallbackOnL ? nozzleTgt : 0);
+  // isActive: true = active nozzle (dot indicator), false = idle nozzle, null = no side info (both equal)
+  const dualBar = (temp, tgt, label, dotCol, isActive) => {
     const fp = Math.min(100, temp / 300 * 100).toFixed(1);
     const tp = tgt > 0 ? Math.min(100, tgt / 300 * 100).toFixed(1) : 0;
+    const activeDot = isActive === true ? `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${nozzleCol};vertical-align:middle;margin-left:3px;box-shadow:0 0 4px ${nozzleCol}"></span>` : '';
     return `<div class="vg-col">
-      <div style="font-size:9px;color:var(--muted);letter-spacing:1px;font-family:'Share Tech Mono',monospace">${label}</div>
+      <div style="font-size:9px;color:var(--muted);letter-spacing:1px;font-family:'Share Tech Mono',monospace">${label}${activeDot}</div>
       <div class="vg-bar">
         <div class="vg-fill" style="height:${fp}%;background:${nozzleCol};box-shadow:0 -2px 8px ${nozzleCol}55"></div>
         ${tgt > 0 ? `<div class="vg-mark" style="bottom:${tp}%"></div>` : ''}
@@ -676,26 +701,42 @@ function panel(s, idx) {
       </div>
       <div class="gg">
         <div class="gc">
-          <div class="gc-lbl">Nozzle
-            ${s.nozzle_type ? `<span style="font-size:9px;font-weight:400;display:block;margin-top:1px">${s.nozzle_type}</span>` : ''}
-          </div>
+          ${(() => {
+            const nt = s.nozzle_type || '';
+            // Dual-nozzle printers: no L/R suffix on the card label (bars handle it below)
+            // Single-nozzle: append side if discernible from nozzle_type string
+            let side = '';
+            if (!hasDualTemp) {
+              const isR = nt.endsWith('1') || nt.includes('R');
+              const isL = nt.endsWith('0') || nt.includes('L');
+              side = slots ? (isR ? ' R' : isL ? ' L' : '') : '';
+            }
+            return `<div class="gc-lbl">Nozzle${side}
+              ${nt ? `<span style="font-size:9px;font-weight:400;display:block;margin-top:1px">${nt}</span>` : ''}
+            </div>`;
+          })()}
           ${hasDualTemp ? `
           <div class="vg-outer" style="gap:5px">
-            ${dualBar(nLTemp, nLTgt, 'L', slots ? slots[0].color : null)}
-            ${dualBar(nRTemp, nRTgt, 'R', slots ? slots[1].color : null)}
-          </div>` : `
-          <div class="vg-outer">
+            ${dualBar(nLTemp, nLTgt, 'L', slots ? slots[0].color : null, nozzleActiveSide ? nozzleActiveSide === 'L' : null)}
+            ${dualBar(nRTemp, nRTgt, 'R', slots ? slots[1].color : null, nozzleActiveSide ? nozzleActiveSide === 'R' : null)}
+          </div>` : (() => {
+            const idleNozzle = s.printing && nozzleTgt === 0 && !hasDualTemp;
+            const barCol = idleNozzle ? 'var(--muted)' : nozzleCol;
+            const barShadow = idleNozzle ? '' : `box-shadow:0 -2px 8px ${nozzleCol}55`;
+            return `
+          <div class="vg-outer" style="${idleNozzle ? 'opacity:0.45' : ''}">
             <div class="vg-bar">
-              <div class="vg-fill" style="height:${nFPct}%;background:${nozzleCol};box-shadow:0 -2px 8px ${nozzleCol}55"></div>
+              <div class="vg-fill" style="height:${nFPct}%;background:${barCol};${barShadow}"></div>
               ${nozzleTgt > 0 ? `<div class="vg-mark" style="bottom:${nTPct}%"></div>` : ''}
             </div>
           </div>
-          <div class="vg-val">${nozzleTemp}</div>
-          <div class="vg-sub">${nozzleTgt > 0 ? '&#9658;' + nozzleTgt + '&deg;' : '&deg;C'}</div>
+          <div class="vg-val" style="${idleNozzle ? 'opacity:0.45' : ''}">${nozzleTemp}</div>
+          <div class="vg-sub" style="${idleNozzle ? 'opacity:0.45' : ''}">${nozzleTgt > 0 ? '&#9658;' + nozzleTgt + '&deg;' : '&deg;C'}</div>
           ${slots ? `<div class="vg-dots">
             <div class="vg-dot" title="Left nozzle"  style="background:${slots[0].color}"></div>
             <div class="vg-dot" title="Right nozzle" style="background:${slots[1].color}"></div>
-          </div>` : ''}`}
+          </div>` : ''}`;
+          })()}
         </div>
         <div class="gc">
           <div class="gc-lbl">Bed</div>
@@ -859,6 +900,40 @@ function tickIdleClock() {
 }
 setInterval(tickIdleClock, 1000);
 tickIdleClock();
+
+// ── Weather display ───────────────────────────────────────────────────────
+async function updateWeather() {
+  try {
+    const w = await fetch('/api/weather').then(r => r.json());
+    const el = document.getElementById('idle-weather');
+    if (!w || !w.temp) { el.style.display = 'none'; return; }
+    document.getElementById('wx-temp').textContent  = `${w.temp}\u00b0${w.unit}`;
+    document.getElementById('wx-desc').textContent  = w.desc;
+    document.getElementById('wx-range').textContent = `H:${w.high}\u00b0  L:${w.low}\u00b0  Humidity:${w.humidity}%`;
+    el.style.display = 'flex';
+  } catch(e) {}
+}
+updateWeather();
+setInterval(updateWeather, 1800000); // refresh every 30 min
+
+// ── Token expiry warning ──────────────────────────────────────────────────
+async function checkTokenExpiry() {
+  try {
+    const data = await fetch('/api/token_expiry').then(r => r.json());
+    const bar  = document.getElementById('token-warn-bar');
+    const msg  = document.getElementById('token-warn-msg');
+    const warn = data.filter(p => p.days_left !== null && p.days_left <= 30);
+    if (!warn.length) { bar.style.display = 'none'; return; }
+    const parts = warn.map(p => {
+      if (p.days_left <= 0)  return `${p.name}: token EXPIRED`;
+      if (p.days_left <= 7)  return `${p.name}: token expires in ${p.days_left}d`;
+      return `${p.name}: token expires in ${p.days_left} days`;
+    });
+    msg.textContent = '⚠ ' + parts.join('  ·  ');
+    bar.style.display = 'flex';
+  } catch(e) {}
+}
+checkTokenExpiry();
 
 // ── WebSocket + initial state load ───────────────────────────────────────
 const socket = io();

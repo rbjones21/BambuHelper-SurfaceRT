@@ -1,4 +1,4 @@
-# BambuHelperRT — v1.3.0
+# BambuHelperRT — v1.4.0
 
 A Bambu Lab printer monitor dashboard running on a **Microsoft Surface RT** with Debian 12.
 Connects to one or two printers simultaneously via Bambu Cloud MQTT and displays live status
@@ -49,14 +49,15 @@ Bambu Cloud MQTT → bambu_server.py (Flask + SocketIO :5000) → WebSocket → 
 - **ETA** — estimated finish time (12h or 24h format)
 - **LED progress bar** — H2-style 40-segment bar showing completion %
 - **6 arc gauges** — Nozzle temp, Bed temp, Chamber temp, Part Fan %, Aux Fan %, Exhaust Fan %
+- **H2D dual nozzle** — L and R nozzle bars shown separately; active side indicated; reads `extruder` MQTT object when available
 - **Nozzle type** — active nozzle type shown under nozzle gauge (e.g. HS01-0.4, HH01)
 - **Virtual slot dots** — two colored dots under nozzle gauge showing left/right nozzle filament colors
-- **AMS strip** — filament color swatches for all AMS slots with remaining %, active tray highlighted, empty slots faded
+- **AMS strip** — filament color swatches for all AMS slots with remaining %, active tray highlighted, empty slots faded (detects states 10, 24, and untyped slots)
 
 ### Layout
 - **Two printers**: side-by-side split layout
 - **One printer** (or one disabled): single panel expands full width with larger fonts and gauges in a single row
-- **No active prints**: full-screen idle clock with date display
+- **No active prints**: full-screen idle clock with date and current weather conditions
 
 ### Header
 - BambuHelperRT logo
@@ -76,7 +77,9 @@ All cards start collapsed — tap a card header to expand it.
 - Connection mode: LAN or Cloud
 - Serial number
 - LAN: IP address and access code
-- Cloud: region (US/CN), Bambu user ID, access token
+- Cloud: region (US/CN), access token (user ID derived automatically from JWT)
+- **Bambu Cloud token fetch** — log in with email/password directly from settings; supports 2FA/MFA code entry
+- **Token expiry indicator** — colour-coded expiry date shown after token is set; orange/red warning when < 30/7 days
 - Enable/disable toggle — disabled printers are hidden from the dashboard
 
 ### Display
@@ -98,11 +101,25 @@ All cards start collapsed — tap a card header to expand it.
 - **Forget** — removes saved credentials for a network
 - **IP Configuration** — switch between DHCP and Static IP; static mode shows fields for IP/subnet, gateway, and DNS
 
+### Weather
+- **Location** — postal code or city name entered via on-screen QWERTY keyboard (no physical keyboard needed)
+- **Units** — Celsius or Fahrenheit
+- Weather shown on the idle clock screen when no prints are active
+
+### Print History
+- Completed prints logged automatically (job name, printer, layer count, duration, timestamp)
+- History viewable in Settings; can be cleared
+
 ### System
 - **Timezone** — select from common timezones; DST handled automatically by the system
 - **Reboot** — reboots the Surface RT (with confirmation)
 - **Shutdown** — shuts down the Surface RT (with confirmation)
 - **Terminal** — opens an xterm window on the display
+
+### Access & Security
+- **PIN protection** — set a numeric PIN; entered via on-screen numpad (no keyboard needed)
+- **LAN access toggle** — enable/disable access from other devices on the network
+- **Local PIN toggle** — optionally require PIN for settings access even from the kiosk itself
 
 ### About
 - Project description and links
@@ -116,15 +133,15 @@ the bottom of each printer panel.
 
 - **Filament colors** — actual spool colors from AMS RFID tags
 - **Remaining %** — percentage of filament remaining per slot (when reported by AMS)
-- **Active tray** — highlighted with accent color and `▶` when state=24 (actively feeding)
-- **In-job trays** — subtly outlined when part of the current print job
-- **Empty slots** — faded to indicate no filament loaded
+- **Active tray** — highlighted with accent color and `▶` when state=27 (actively feeding)
+- **In-job trays** — subtly outlined when part of the current print job; uses `mapping` field for reliability in cloud mode
+- **Empty slots** — faded to indicate no filament loaded; detects states 10, 24, and slots with no filament type
 - **Multiple AMS units** — supports up to 2 AMS units (8 trays) per printer
 
-> **Note:** Due to cloud MQTT limitations, simultaneous left/right nozzle temperatures are
-> not available for H2D/H2C in cloud mode. Only the active nozzle temperature is reported.
-> Active tray detection (state=24) fires briefly during filament changes; in-job highlighting
-> uses the mapping field to show which slots are assigned to the current print.
+> **Note:** In cloud MQTT mode, `nozzle_temper` reports only the **inactive** nozzle on the H2D. True L/R temps
+> require the `extruder` object which is sent during some print events. When unavailable, the known reading
+> is shown on the L bar as a fallback. In-job tray detection uses the `mapping` field rather than the stale
+> `tray_now` field for accuracy during cloud prints.
 
 ---
 
@@ -140,19 +157,22 @@ Connects via Bambu Lab's cloud MQTT broker. Does not require Developer Mode.
   "mode": "cloud",
   "region": "us",
   "serial": "YOUR_SERIAL",
-  "bambu_user_id": "YOUR_USER_ID",
   "bambu_token": "YOUR_TOKEN",
   "enabled": true
 }
 ```
 
-**Getting your token:**
+> `bambu_user_id` is no longer required — the user ID is derived automatically from the JWT token.
+
+**Getting your token (easiest):**
+Use Settings → Printer → Fetch Token. Enter your Bambu Lab email and password; 2FA/MFA is supported.
+
+**Getting your token manually:**
 1. Log into [bambulab.com](https://bambulab.com) in your browser
 2. Open Developer Tools (F12) → Application → Cookies → bambulab.com
 3. Copy the `token` cookie value as `bambu_token`
-4. Find your user ID at: `https://bambulab.com/api/v1/design-user-service/my/preference` — look for `uid`
 
-> Tokens expire every ~3 months. When a printer shows offline and logs show "Bad credentials", get a fresh token and update it in Settings.
+> Tokens expire every ~3 months. A warning banner appears on the dashboard when a token is within 30 days of expiry. When a printer shows offline and logs show "Bad credentials", fetch a fresh token in Settings.
 
 ### LAN Mode (X1, P1, A1 series with Developer Mode)
 Connects directly to the printer on your local network.
@@ -284,11 +304,12 @@ iw dev mlan0 link
 
 ## Security Notes
 
-The web server binds to `127.0.0.1` (localhost only) — accessible only from Chromium
-on the Surface RT itself, not from other devices on your network.
+The web server binds to `0.0.0.0` (all interfaces) to support optional LAN access.
 
-If you need remote access, change `host='127.0.0.1'` to `host='0.0.0.0'` in
-`bambu_server.py`, but be aware this exposes `/api/config` which contains your printer tokens.
+- **LAN access** is disabled by default — enable it in Settings → Access if you want to view the dashboard from another device on your network
+- **PIN protection** — set a PIN in Settings → Access to require authentication before any LAN visitor (or optionally the local kiosk user) can reach the settings page
+- **Local PIN** — optional toggle to also require PIN for settings access from the kiosk itself
+- All non-GET API routes are PIN-gated when PIN protection is active
 
 ---
 
@@ -297,7 +318,7 @@ If you need remote access, change `host='127.0.0.1'` to `host='0.0.0.0'` in
 | Problem | Solution |
 |---|---|
 | Service won't start (KeyError: 'id') | Config corrupted — server auto-restores from known-good backup on next restart |
-| Cloud printer offline | Token expired — get fresh token from bambulab.com cookies |
+| Cloud printer offline | Token expired — use Settings → Printer → Fetch Token, or get fresh token from bambulab.com cookies |
 | Dashboard blank | JavaScript error — restart service and hard-refresh Chromium |
 | Colors not applying | Open Settings, select theme and click Apply |
 | Screen not turning off | Check timeout > 0 and "Always on" is unchecked |
@@ -310,6 +331,20 @@ If you need remote access, change `host='127.0.0.1'` to `host='0.0.0.0'` in
 ---
 
 ## Changelog
+
+### v1.4.0 — March 2026
+- **PIN protection** — numeric PIN with on-screen numpad (no physical keyboard required); gates LAN access and optionally the local settings page
+- **LAN access control** — toggle remote access on/off from Settings → Access; disabled by default
+- **Local PIN toggle** — optionally require PIN for settings access from the kiosk itself
+- **Bambu Cloud token fetch** — log in with email/password directly from settings; 2FA/MFA code entry supported; user ID derived automatically from JWT (no manual entry)
+- **Token expiry warning** — dashboard shows orange/red banner when any cloud token is within 30/7 days of expiry; expiry date shown in settings after token is set
+- **Weather on idle clock** — current conditions, temperature, and high/low shown on the idle clock screen; location set via on-screen QWERTY keyboard in settings
+- **Print history** — completed prints logged automatically (name, printer, layers, duration, date); viewable and clearable in Settings → Print History
+- **H2D dual nozzle display** — L and R bars always shown for H2D (`HH` nozzle type); active side indicated by dot; parses `extruder` MQTT object (packed 32-bit temps) when available; falls back to the one reading cloud MQTT provides
+- **AMS empty slot fix** — correctly handles state 10, state 24, and untyped slots as empty; fixes false-loaded display on AMS 2 slot 4
+- **Active filament fix** — prefers `in_job` flag (from `mapping` field) over stale `tray_now` for active tray highlighting during cloud prints
+- **HMS errors clear on RUNNING** — transient HMS codes at print start are cleared when the print resumes/begins, avoiding spurious error overlays
+- **Old Chromium compatibility** — removed emoji characters (💧🔥📧🔢) that don't render on Surface RT's Chromium build; replaced with text equivalents
 
 ### v1.3.0 — March 2026
 - **Network settings** — WiFi scan, connect to new networks, forget saved networks, all from the settings UI

@@ -255,6 +255,47 @@
 </style>
 </head>
 <body>
+<!-- PIN numpad overlay -->
+<div id="pin-pad-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9000;align-items:center;justify-content:center" onclick="if(event.target===this)closePinPad()">
+  <div style="background:var(--track);border:1px solid var(--border);border-radius:14px;padding:24px;width:260px;text-align:center">
+    <div style="font-size:14px;color:var(--muted);margin-bottom:12px">Enter new PIN (4–8 digits)</div>
+    <div id="pin-pad-display" style="font-size:28px;font-family:monospace;letter-spacing:8px;min-height:40px;color:var(--text);background:var(--input-bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:16px">&#8203;</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px">
+      <button class="sys-btn" style="font-size:22px;padding:14px 0" onclick="pinPadKey('1')">1</button>
+      <button class="sys-btn" style="font-size:22px;padding:14px 0" onclick="pinPadKey('2')">2</button>
+      <button class="sys-btn" style="font-size:22px;padding:14px 0" onclick="pinPadKey('3')">3</button>
+      <button class="sys-btn" style="font-size:22px;padding:14px 0" onclick="pinPadKey('4')">4</button>
+      <button class="sys-btn" style="font-size:22px;padding:14px 0" onclick="pinPadKey('5')">5</button>
+      <button class="sys-btn" style="font-size:22px;padding:14px 0" onclick="pinPadKey('6')">6</button>
+      <button class="sys-btn" style="font-size:22px;padding:14px 0" onclick="pinPadKey('7')">7</button>
+      <button class="sys-btn" style="font-size:22px;padding:14px 0" onclick="pinPadKey('8')">8</button>
+      <button class="sys-btn" style="font-size:22px;padding:14px 0" onclick="pinPadKey('9')">9</button>
+      <button class="sys-btn" style="font-size:18px;padding:14px 0;color:#ff8888;border-color:rgba(255,100,100,0.4)" onclick="pinPadKey('back')">⌫</button>
+      <button class="sys-btn" style="font-size:22px;padding:14px 0" onclick="pinPadKey('0')">0</button>
+      <button class="sys-btn" style="font-size:18px;padding:14px 0;color:#88ff88;border-color:rgba(100,255,100,0.4)" onclick="pinPadKey('ok')">✓</button>
+    </div>
+    <button class="sys-btn" style="width:100%;color:var(--muted)" onclick="closePinPad()">Cancel</button>
+  </div>
+</div>
+
+<!-- On-screen keyboard overlay -->
+<div id="kbd-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9000;align-items:flex-end;justify-content:center" onclick="if(event.target===this)closeKeyboard()">
+  <div style="background:var(--track);border-top:1px solid var(--border);width:100%;max-width:720px;padding:14px 10px 18px;border-radius:14px 14px 0 0">
+    <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
+      <div id="kbd-display" style="flex:1;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:16px;padding:8px 12px;min-height:38px;letter-spacing:1px"></div>
+      <button style="font-size:18px;padding:8px 16px;background:#3a2020;border:1px solid rgba(255,100,100,0.4);border-radius:8px;color:#ff8888;cursor:pointer;touch-action:manipulation" onclick="kbdKey('back')">&#9003;</button>
+      <button style="font-size:16px;font-weight:700;padding:8px 18px;background:#1a3a20;border:1px solid rgba(100,255,100,0.4);border-radius:8px;color:#88ff88;cursor:pointer;touch-action:manipulation" onclick="kbdKey('ok')">OK</button>
+    </div>
+    <div id="kbd-rows"></div>
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <button style="flex:3;font-size:16px;font-weight:600;padding:13px 0;background:#2a3040;border:1px solid #3d4560;border-radius:8px;color:#e8edf5;cursor:pointer;touch-action:manipulation" onclick="kbdKey(' ')">Space</button>
+      <button style="flex:1;font-size:18px;font-weight:700;padding:13px 0;background:#2a3040;border:1px solid #3d4560;border-radius:8px;color:#e8edf5;cursor:pointer;touch-action:manipulation" onclick="kbdToggleCase()">&#8679;</button>
+      <button style="flex:1;font-size:14px;font-weight:700;padding:13px 0;background:#2a3040;border:1px solid #3d4560;border-radius:8px;color:#e8edf5;cursor:pointer;touch-action:manipulation" onclick="kbdToggleNum()">123</button>
+      <button style="padding:13px 16px;font-size:14px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);cursor:pointer;touch-action:manipulation" onclick="closeKeyboard()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <header>
   <div class="logo">BambuHelper<em>RT</em></div>
   <a href="/" class="nav-btn">◀ Dashboard</a>
@@ -305,20 +346,31 @@
             </select>
           </div>
         </div>
-        <div class="token-box">
-          <strong>How to get your token:</strong>
-          <ol>
-            <li>Open <a href="https://bambulab.com" target="_blank">bambulab.com</a> and log in</li>
-            <li>Press F12 → Application → Cookies → bambulab.com</li>
-            <li>Copy the <strong>token</strong> cookie value</li>
-            <li>Get numeric User ID from <a href="https://makerworld.com/api/v1/design-user-service/my/preference" target="_blank">MakerWorld profile</a> → find <strong>uid</strong></li>
-          </ol>
-        </div>
-        <div class="field"><label>Access Token</label><textarea id="f-token" placeholder="Paste your Bambu Cloud token here..."></textarea></div>
+        <!-- Token fetch helper -->
         <div class="field">
-          <label>Bambu User ID</label>
-          <input type="text" id="f-uid" placeholder="Numeric user ID (e.g. 178540148)">
-          <div class="hint">Found at MakerWorld profile API — look for uid field</div>
+          <label>Sign in to Bambu Account</label>
+          <!-- Step 1: credentials -->
+          <div id="f-login-step1">
+            <input type="email" id="f-login-email" placeholder="Bambu account email" style="margin-bottom:6px">
+            <input type="password" id="f-login-pass" placeholder="Password">
+            <button class="btn btn-primary" style="margin-top:8px;padding:8px 16px" onclick="fetchToken()">Fetch Token</button>
+          </div>
+          <!-- Step 2: verification code (shown only when MFA required) -->
+          <div id="f-login-step2" style="display:none">
+            <div style="font-size:13px;color:var(--text);margin-bottom:8px">A verification code was sent to your email — enter it below to continue</div>
+            <input type="text" id="f-login-code" placeholder="6-digit code" inputmode="numeric" maxlength="6" style="letter-spacing:4px;font-size:16px;text-align:center">
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button class="btn btn-primary" style="flex:1;padding:8px" onclick="submitVerifyCode()">Verify</button>
+              <button class="btn" style="padding:8px 12px;background:transparent;border:1px solid var(--border)" onclick="resetLoginForm()">Cancel</button>
+            </div>
+          </div>
+          <div id="f-login-status" style="font-size:12px;margin-top:6px;color:var(--muted)"></div>
+          <div class="hint" style="margin-top:4px">Or paste a token manually below</div>
+        </div>
+        <div class="field">
+          <label>Access Token</label>
+          <textarea id="f-token" placeholder="Paste your Bambu Cloud token here..." oninput="showTokenExpiry(this.value)"></textarea>
+          <div id="f-token-expiry" style="font-size:12px;margin-top:4px;display:none"></div>
         </div>
       </div>
       <div class="field"><label>Printer Serial Number</label><input type="text" id="f-serial" placeholder="e.g. 31B8AP5B2600220"></div>
@@ -482,6 +534,48 @@
         </div>
         <div id="sys-tz-current" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
       </div>
+      <!-- LAN Access -->
+      <div class="field-row" style="margin-bottom:14px">
+        <label>LAN Access</label>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="lan-access-toggle" onchange="setLanAccess(this.checked)" style="width:16px;height:16px">
+            <span style="font-size:13px">Allow access from other devices on your network</span>
+          </label>
+        </div>
+        <div id="lan-ip-info" style="font-size:12px;color:var(--muted);margin-top:4px;display:none">
+          Access at: <span id="lan-ip" style="color:var(--accent);font-family:monospace"></span>
+        </div>
+      </div>
+      <!-- Settings PIN -->
+      <div class="field-row" style="margin-bottom:14px">
+        <label>Settings PIN</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="sys-btn" onclick="openPinPad()">Set New PIN</button>
+          <button class="sys-btn" onclick="clearPin()" style="color:#ff8888;border-color:rgba(255,100,100,0.4)">Clear PIN</button>
+        </div>
+        <div id="pin-status" style="font-size:12px;color:var(--muted);margin-top:4px"></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">If forgotten, SSH in and clear <code>settings_pin</code> from /etc/bambuhelper/config.json</div>
+        <div style="margin-top:10px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="pin-local-toggle" onchange="setPinProtectLocal(this.checked)" style="width:16px;height:16px">
+            <span style="font-size:13px">Require PIN when accessing Settings from this device</span>
+          </label>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">When off, PIN is only required from other devices on the network</div>
+        </div>
+      </div>
+      <!-- Settings Backup -->
+      <div class="field-row" style="margin-bottom:14px">
+        <label>Config Backup</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="sys-btn" onclick="downloadBackup()">Download Backup</button>
+          <label class="sys-btn" style="cursor:pointer">
+            Restore Backup
+            <input type="file" id="restore-file" accept=".json" onchange="restoreBackup(this)" style="display:none">
+          </label>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">Backup includes printer tokens — store securely</div>
+      </div>
       <!-- Device controls -->
       <div class="field-row">
         <label>Device</label>
@@ -492,6 +586,40 @@
         </div>
       </div>
       <div id="sys-msg" style="font-size:13px;color:var(--muted);margin-top:8px;display:none"></div>
+    </div>
+  </div>
+
+  <!-- ── Weather ── -->
+  <div class="card">
+    <div class="card-hdr collapsed" onclick="toggleCard(this)"><h2>Weather</h2><span class="chev">▼</span></div>
+    <div class="card-body hidden">
+      <div class="field-row" style="margin-bottom:14px">
+        <label>Location</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div id="wx-location-display" onclick="openKeyboard()" style="flex:1;min-width:200px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:14px;cursor:pointer;min-height:38px"></div>
+          <input type="hidden" id="wx-location">
+          <div class="sel-wrap" style="min-width:80px">
+            <select id="wx-unit" style="background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:14px">
+              <option value="F">°F</option>
+              <option value="C">°C</option>
+            </select>
+          </div>
+          <button class="sys-btn" onclick="saveWeatherSettings()">Save</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">Shown on the idle clock screen when no prints are active</div>
+      </div>
+      <div id="wx-preview" style="font-size:13px;color:var(--muted);margin-top:4px"></div>
+    </div>
+  </div>
+
+  <!-- ── Print History ── -->
+  <div class="card">
+    <div class="card-hdr collapsed" onclick="toggleCard(this)"><h2>Print History</h2><span class="chev">▼</span></div>
+    <div class="card-body hidden">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+        <button class="sys-btn" style="color:#ff8888;border-color:rgba(255,100,100,0.4)" onclick="clearHistory()">Clear History</button>
+      </div>
+      <div id="history-list" style="font-size:13px;color:var(--muted)">Loading...</div>
     </div>
   </div>
 
@@ -562,6 +690,7 @@ async function init() {
   }
   loadNetworkStatus();
   loadTimezone();
+  loadAccessInfo();
 }
 
 async function refreshState() {
@@ -572,6 +701,12 @@ async function refreshState() {
 function toggleCard(hdr) {
   hdr.classList.toggle('collapsed');
   hdr.nextElementSibling.classList.toggle('hidden');
+  // Lazy-load data when cards are opened
+  const title = hdr.querySelector('h2')?.textContent?.trim();
+  if (!hdr.classList.contains('collapsed')) {
+    if (title === 'Weather')       loadWeatherSettings();
+    if (title === 'Print History') loadPrintHistory();
+  }
 }
 
 function showToast(msg, type='') {
@@ -726,7 +861,7 @@ function loadPrinterForm(idx) {
   document.getElementById('f-code').value      = p.access_code   || '';
   document.getElementById('f-region').value    = p.region        || 'us';
   document.getElementById('f-token').value     = p.bambu_token   || '';
-  document.getElementById('f-uid').value       = p.bambu_user_id || '';
+  showTokenExpiry(p.bambu_token || '');
   document.getElementById('f-serial').value    = p.serial        || '';
   document.getElementById('f-name').value      = p.name          || '';
   document.getElementById('f-enabled').checked = p.enabled !== false;
@@ -755,7 +890,6 @@ async function savePrinter() {
   } else {
     p.region        = document.getElementById('f-region').value;
     p.bambu_token   = document.getElementById('f-token').value.trim();
-    p.bambu_user_id = document.getElementById('f-uid').value.trim();
     delete p.ip; delete p.access_code;
   }
   config.printers[currentIdx] = p;
@@ -767,9 +901,88 @@ async function savePrinter() {
   } catch(e) { showToast('Could not reach server', 'error'); }
 }
 
+let _loginEmail = '', _loginPass = '';
+
+async function fetchToken() {
+  const email  = document.getElementById('f-login-email').value.trim();
+  const pass   = document.getElementById('f-login-pass').value;
+  const status = document.getElementById('f-login-status');
+  if (!email || !pass) { status.textContent = 'Enter email and password first'; return; }
+  status.style.color = 'var(--muted)';
+  status.textContent = 'Connecting to Bambu…';
+  const r = await fetch('/api/system/bambu_login', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify({email, password: pass})});
+  const d = await r.json();
+  if (d.needs_code) {
+    _loginEmail = email; _loginPass = pass;
+    document.getElementById('f-login-step1').style.display = 'none';
+    document.getElementById('f-login-step2').style.display = '';
+    document.getElementById('f-login-code').value = '';
+    document.getElementById('f-login-code').focus();
+    status.textContent = '';
+    return;
+  }
+  applyLoginResult(d, status);
+}
+
+async function submitVerifyCode() {
+  const code   = document.getElementById('f-login-code').value.trim();
+  const status = document.getElementById('f-login-status');
+  if (!code) { status.textContent = 'Enter the verification code'; return; }
+  status.style.color = 'var(--muted)';
+  status.textContent = 'Verifying…';
+  const r = await fetch('/api/system/bambu_login', {method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({email: _loginEmail, password: _loginPass, code})});
+  const d = await r.json();
+  applyLoginResult(d, status);
+}
+
+function applyLoginResult(d, status) {
+  if (d.ok) {
+    document.getElementById('f-token').value = d.token;
+    showTokenExpiry(d.token);
+    status.style.color = '#88ff88';
+    status.textContent = 'Token retrieved — save printer settings to apply';
+    resetLoginForm();
+  } else {
+    status.style.color = '#f85149';
+    status.textContent = 'Error: ' + d.error;
+  }
+}
+
+function resetLoginForm() {
+  _loginEmail = ''; _loginPass = '';
+  document.getElementById('f-login-step1').style.display = '';
+  document.getElementById('f-login-step2').style.display = 'none';
+  document.getElementById('f-login-pass').value = '';
+  document.getElementById('f-login-code').value = '';
+}
+
+function showTokenExpiry(token) {
+  const el = document.getElementById('f-token-expiry');
+  if (!token) { el.style.display = 'none'; return; }
+  try {
+    const b64 = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    const payload = JSON.parse(atob(b64 + '==='.slice((b64.length + 3) % 4 || 4)));
+    if (payload.exp) {
+      const d = new Date(payload.exp * 1000);
+      const now = Date.now();
+      const daysLeft = Math.ceil((d - now) / 86400000);
+      const color = daysLeft < 7 ? '#f85149' : daysLeft < 30 ? '#ff9944' : 'var(--muted)';
+      el.style.color = color;
+      el.style.display = '';
+      el.textContent = `Token expires ${d.toLocaleDateString()} (${daysLeft > 0 ? daysLeft + ' days' : 'EXPIRED'})`;
+    } else { el.style.display = 'none'; }
+  } catch(e) { el.style.display = 'none'; }
+}
+
 function clearToken() {
   document.getElementById('f-token').value = '';
-  document.getElementById('f-uid').value   = '';
+  document.getElementById('f-token-expiry').style.display = 'none';
+  document.getElementById('f-login-email').value = '';
+  document.getElementById('f-login-status').textContent = '';
+  resetLoginForm();
   showToast('Token cleared', 'success');
 }
 
@@ -782,6 +995,101 @@ function updateStats() {
   document.getElementById('s-prog').textContent      = `${s.progress || 0}%`;
   document.getElementById('s-nozzle').textContent    = `${Math.round(s.nozzle_temp||0)}/${Math.round(s.nozzle_target||0)}°C`;
   document.getElementById('s-bed').textContent       = `${Math.round(s.bed_temp||0)}/${Math.round(s.bed_target||0)}°C`;
+}
+
+// ── LAN access + PIN + Backup ────────────────────────────────────────────
+async function loadAccessInfo() {
+  const r = await fetch('/api/system/access_info');
+  const d = await r.json();
+  document.getElementById('lan-access-toggle').checked = d.lan_access;
+  const ipInfo = document.getElementById('lan-ip-info');
+  if (d.lan_access) {
+    document.getElementById('lan-ip').textContent = `http://${d.local_ip}:5000`;
+    ipInfo.style.display = 'block';
+  } else {
+    ipInfo.style.display = 'none';
+  }
+  document.getElementById('pin-status').textContent = d.pin_set ? 'PIN is currently set' : 'No PIN set';
+  document.getElementById('pin-local-toggle').checked = d.pin_protect_local !== false;
+}
+
+async function setLanAccess(enabled) {
+  const r = await fetch('/api/system/lan_access', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify({enabled})});
+  const d = await r.json();
+  const ipInfo = document.getElementById('lan-ip-info');
+  if (d.lan_access) {
+    const info = await (await fetch('/api/system/access_info')).json();
+    document.getElementById('lan-ip').textContent = `http://${info.local_ip}:5000`;
+    ipInfo.style.display = 'block';
+  } else {
+    ipInfo.style.display = 'none';
+  }
+}
+
+let _pinPadValue = '';
+
+function openPinPad() {
+  _pinPadValue = '';
+  document.getElementById('pin-pad-display').textContent = '';
+  document.getElementById('pin-pad-overlay').style.display = 'flex';
+}
+
+function closePinPad() {
+  document.getElementById('pin-pad-overlay').style.display = 'none';
+}
+
+function pinPadKey(k) {
+  if (k === 'back') {
+    _pinPadValue = _pinPadValue.slice(0, -1);
+  } else if (k === 'ok') {
+    if (_pinPadValue.length < 4) { return; }
+    setPin(_pinPadValue);
+    closePinPad();
+    return;
+  } else {
+    if (_pinPadValue.length >= 8) return;
+    _pinPadValue += k;
+  }
+  document.getElementById('pin-pad-display').textContent = '●'.repeat(_pinPadValue.length) || '\u200b';
+}
+
+async function setPinProtectLocal(enabled) {
+  await fetch('/api/system/pin_protect_local', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify({enabled})});
+}
+
+async function setPin(pin) {
+  const r = await fetch('/api/system/set_pin', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify({pin})});
+  const d = await r.json();
+  if (d.ok) document.getElementById('pin-status').textContent = 'PIN set successfully';
+}
+
+async function clearPin() {
+  if (!confirm('Clear the PIN? Settings will be unprotected.')) return;
+  const r = await fetch('/api/system/set_pin', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify({pin: ''})});
+  const d = await r.json();
+  if (d.ok) document.getElementById('pin-status').textContent = 'No PIN set';
+}
+
+function downloadBackup() {
+  window.location.href = '/api/settings/backup';
+}
+
+async function restoreBackup(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!confirm('Restore config from this file? Current settings will be overwritten.')) {
+    input.value = ''; return;
+  }
+  const fd = new FormData();
+  fd.append('config', file);
+  const r = await fetch('/api/settings/restore', {method:'POST', body: fd});
+  const d = await r.json();
+  alert(d.ok ? d.message : 'Restore failed: ' + d.error);
+  input.value = '';
 }
 
 // ── System actions ─────────────────────────────────────────────────────────
@@ -797,6 +1105,142 @@ async function sysAction(action) {
   } catch(e) {
     msg.textContent = 'Error: ' + e.message;
   }
+}
+
+// ── On-screen keyboard ─────────────────────────────────────────────────────
+const KBD_ALPHA = [
+  ['q','w','e','r','t','y','u','i','o','p'],
+  ['a','s','d','f','g','h','j','k','l'],
+  ['z','x','c','v','b','n','m','.', '-'],
+];
+const KBD_NUM = [
+  ['1','2','3','4','5','6','7','8','9','0'],
+  ['!','@','#','$','%','^','&','*','(',')'],
+  ['-','_','.',',','/','\\',':',';','\'','"'],
+];
+let _kbdValue = '';
+let _kbdUpper = false;
+let _kbdNumMode = false;
+let _kbdCallback = null;
+
+function _buildKbdRows() {
+  const rows = _kbdNumMode ? KBD_NUM : KBD_ALPHA;
+  document.getElementById('kbd-rows').innerHTML = rows.map(row =>
+    `<div style="display:flex;gap:5px;justify-content:center;margin-bottom:5px">${
+      row.map(k => {
+        const label = (!_kbdNumMode && _kbdUpper) ? k.toUpperCase() : k;
+        return `<button style="flex:1;max-width:64px;font-size:20px;font-weight:600;padding:13px 0;background:#2a3040;border:1px solid #3d4560;border-radius:8px;color:#e8edf5;cursor:pointer;touch-action:manipulation" onclick="kbdKey('${k}')">${label}</button>`;
+      }).join('')
+    }</div>`
+  ).join('');
+}
+
+function openKeyboard(callback) {
+  _kbdCallback = callback || null;
+  _kbdValue    = document.getElementById('wx-location').value || '';
+  _kbdUpper    = false;
+  _kbdNumMode  = false;
+  document.getElementById('kbd-display').textContent = _kbdValue || '';
+  _buildKbdRows();
+  document.getElementById('kbd-overlay').style.display = 'flex';
+}
+
+function closeKeyboard() {
+  document.getElementById('kbd-overlay').style.display = 'none';
+}
+
+function kbdToggleCase() {
+  _kbdUpper = !_kbdUpper;
+  _buildKbdRows();
+}
+
+function kbdToggleNum() {
+  _kbdNumMode = !_kbdNumMode;
+  document.querySelector('#kbd-overlay button:last-child ~ button, #kbd-overlay .sys-btn:nth-last-child(2)');
+  _buildKbdRows();
+}
+
+function kbdKey(k) {
+  if (k === 'back') {
+    _kbdValue = _kbdValue.slice(0, -1);
+  } else if (k === 'ok') {
+    document.getElementById('wx-location').value = _kbdValue;
+    const disp = document.getElementById('wx-location-display');
+    disp.textContent = _kbdValue;
+    disp.style.color = _kbdValue ? 'var(--text)' : 'var(--muted)';
+    closeKeyboard();
+    return;
+  } else if (k === ' ') {
+    _kbdValue += ' ';
+  } else {
+    _kbdValue += (!_kbdNumMode && _kbdUpper) ? k.toUpperCase() : k;
+  }
+  document.getElementById('kbd-display').textContent = _kbdValue || '';
+}
+
+// ── Weather settings ───────────────────────────────────────────────────────
+async function loadWeatherSettings() {
+  const cfg = await fetch('/api/config').then(r => r.json());
+  if (cfg.weather_location) {
+    document.getElementById('wx-location').value = cfg.weather_location;
+    const disp = document.getElementById('wx-location-display');
+    disp.textContent = cfg.weather_location;
+    disp.style.color = 'var(--text)';
+  }
+  if (cfg.weather_unit)     document.getElementById('wx-unit').value     = cfg.weather_unit;
+  // Show current weather as preview
+  const w = await fetch('/api/weather').then(r => r.json()).catch(() => ({}));
+  const el = document.getElementById('wx-preview');
+  if (w && w.temp) {
+    el.textContent = `Current: ${w.temp}°${w.unit}  ${w.desc}  H:${w.high}°  L:${w.low}°`;
+    el.style.color = 'var(--accent)';
+  } else if (cfg.weather_location) {
+    el.textContent = 'No weather data yet — will fetch on next refresh';
+  } else {
+    el.textContent = '';
+  }
+}
+
+async function saveWeatherSettings() {
+  const location = document.getElementById('wx-location').value.trim();
+  const unit     = document.getElementById('wx-unit').value;
+  await fetch('/api/system/weather_settings', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify({location, unit})});
+  showToast('Weather settings saved', 'success');
+  // Refresh preview after a short delay for the server to fetch
+  setTimeout(loadWeatherSettings, 2000);
+}
+
+// ── Print history ───────────────────────────────────────────────────────────
+async function loadPrintHistory() {
+  const history = await fetch('/api/print_history').then(r => r.json()).catch(() => []);
+  const el = document.getElementById('history-list');
+  if (!history.length) { el.innerHTML = '<div style="opacity:0.5;padding:8px 0">No print history yet</div>'; return; }
+  const rows = [...history].reverse().map(h => {
+    const date   = new Date(h.finished * 1000).toLocaleString();
+    const dur    = h.started ? formatDuration(h.finished - h.started) : '--';
+    return `<div style="display:flex;gap:12px;padding:6px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:baseline">
+      <span style="color:var(--text);flex:1;min-width:120px">${h.job || '--'}</span>
+      <span style="color:var(--muted);font-size:11px;white-space:nowrap">${h.printer}</span>
+      <span style="color:var(--muted);font-size:11px;white-space:nowrap">${h.layers ? h.layers + ' layers' : ''}</span>
+      <span style="color:var(--muted);font-size:11px;white-space:nowrap">${dur}</span>
+      <span style="color:var(--muted);font-size:11px;white-space:nowrap">${date}</span>
+    </div>`;
+  }).join('');
+  el.innerHTML = rows;
+}
+
+function formatDuration(secs) {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  return h ? `${h}h ${m}m` : `${m}m`;
+}
+
+async function clearHistory() {
+  if (!confirm('Clear all print history?')) return;
+  await fetch('/api/print_history/clear', {method:'POST'});
+  loadPrintHistory();
+  showToast('History cleared', 'success');
 }
 
 // ── Timezone ───────────────────────────────────────────────────────────────

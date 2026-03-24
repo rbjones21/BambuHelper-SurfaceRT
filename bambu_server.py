@@ -16,7 +16,9 @@ import time
 import logging
 import urllib.request
 import urllib.error
-from flask import Flask, render_template, jsonify, request, Response
+import io
+import secrets
+from flask import Flask, render_template, jsonify, request, Response, session, redirect, send_file
 from flask_socketio import SocketIO
 import paho.mqtt.client as mqtt
 
@@ -29,6 +31,7 @@ log = logging.getLogger(__name__)
 CONFIG_PATH            = '/etc/bambuhelper/config.json'
 KNOWN_GOOD_CONFIG_PATH = '/etc/bambuhelper/config.known-good.json'
 DISMISSED_HMS_PATH     = '/etc/bambuhelper/dismissed_hms.json'
+PRINT_HISTORY_PATH     = '/etc/bambuhelper/print_history.json'
 
 # ---------------------------------------------------------------------------
 # Config helpers
@@ -80,6 +83,95 @@ def load_config():
 
 CONFIG = load_config()
 
+# Ensure a stable secret key exists (generated once, stored in config)
+if 'secret_key' not in CONFIG:
+    CONFIG['secret_key'] = secrets.token_hex(32)
+    save_config_to_disk(CONFIG)
+
+# ---------------------------------------------------------------------------
+# Access control helpers — LAN access + settings PIN
+# ---------------------------------------------------------------------------
+def is_local_request():
+    return request.remote_addr in ('127.0.0.1', '::1', 'localhost')
+
+def lan_access_enabled():
+    return bool(CONFIG.get('lan_access', False))
+
+def settings_pin():
+    return str(CONFIG.get('settings_pin', ''))
+
+def pin_protect_local():
+    # Default True: PIN required even from kiosk/local browser
+    return bool(CONFIG.get('pin_protect_local', True))
+
+def pin_authenticated():
+    return session.get('pin_authenticated') is True
+
+PIN_PAGE = """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BambuHelper — Enter PIN</title>
+<style>
+ body{margin:0;background:#0d1117;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;}
+ .box{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:28px 24px;text-align:center;width:280px;}
+ h2{color:#58a6ff;margin:0 0 6px;font-size:18px;}
+ p{color:#8b949e;font-size:13px;margin:0 0 16px;}
+ .disp{background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;
+       font-size:28px;letter-spacing:10px;text-align:center;padding:10px 12px;margin-bottom:16px;min-height:48px;}
+ .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;}
+ .k{background:#21262d;border:1px solid #30363d;border-radius:8px;color:#e6edf3;
+    font-size:22px;padding:14px 0;cursor:pointer;touch-action:manipulation;}
+ .k:active{background:#30363d;}
+ .k.del{color:#f85149;}
+ .k.ok{background:#238636;border-color:#238636;color:#fff;font-size:18px;}
+ .k.ok:active{background:#2ea043;}
+ .err{color:#f85149;font-size:12px;margin-top:10px;display:none;}
+</style></head><body>
+<div class="box">
+  <h2>BambuHelper</h2><p>Enter PIN to continue</p>
+  <div class="disp" id="disp">&#8203;</div>
+  <div class="grid">
+    <button class="k" onclick="key('1')">1</button>
+    <button class="k" onclick="key('2')">2</button>
+    <button class="k" onclick="key('3')">3</button>
+    <button class="k" onclick="key('4')">4</button>
+    <button class="k" onclick="key('5')">5</button>
+    <button class="k" onclick="key('6')">6</button>
+    <button class="k" onclick="key('7')">7</button>
+    <button class="k" onclick="key('8')">8</button>
+    <button class="k" onclick="key('9')">9</button>
+    <button class="k del" onclick="key('back')">&#9003;</button>
+    <button class="k" onclick="key('0')">0</button>
+    <button class="k ok" onclick="key('ok')">&#10003;</button>
+  </div>
+  <div class="err" id="err">Incorrect PIN</div>
+</div>
+<script>
+var v='';
+function key(k){
+  if(k==='back'){v=v.slice(0,-1);}
+  else if(k==='ok'){if(v.length>=4)doAuth();return;}
+  else{if(v.length<8)v+=k;}
+  document.getElementById('disp').textContent='\u25cf'.repeat(v.length)||'\u200b';
+}
+async function doAuth(){
+  var r=await fetch('/api/auth/pin',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({pin:v})});
+  var d=await r.json();
+  if(d.ok){location.href='{next}';}
+  else{document.getElementById('err').style.display='block';v='';document.getElementById('disp').textContent='\u200b';}
+}
+</script></body></html>"""
+
+LAN_BLOCKED_PAGE = """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>BambuHelper — Access Restricted</title>
+<style>body{margin:0;background:#0d1117;display:flex;align-items:center;justify-content:center;
+ min-height:100vh;font-family:sans-serif;}
+ .box{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:32px 28px;text-align:center;width:320px;}
+ h2{color:#f85149;margin:0 0 8px;} p{color:#8b949e;font-size:13px;}</style></head>
+<body><div class="box"><h2>Access Restricted</h2>
+<p>LAN access is not enabled on this device.<br>Enable it in Settings → System on the local display.</p>
+</div></body></html>"""
+
 # ---------------------------------------------------------------------------
 # Dismissed HMS persistence — survives reboots
 # ---------------------------------------------------------------------------
@@ -111,13 +203,36 @@ CLOUD_BROKERS = {
     "eu": "us.mqtt.bambulab.com",
 }
 
+def _decode_jwt_payload(token):
+    """Return the decoded JWT payload dict, or {} on failure."""
+    try:
+        import base64
+        payload_b64 = token.split('.')[1]
+        payload_b64 += '=' * (4 - len(payload_b64) % 4)
+        return json.loads(base64.urlsafe_b64decode(payload_b64))
+    except Exception:
+        return {}
+
+def get_user_id_from_token(token):
+    """Extract Bambu numeric user ID from the JWT access token payload."""
+    payload = _decode_jwt_payload(token)
+    return str(payload.get('username') or payload.get('sub') or payload.get('user_id', ''))
+
+def get_token_expiry(token):
+    """Return Unix timestamp of token expiry, or None."""
+    exp = _decode_jwt_payload(token).get('exp')
+    return int(exp) if exp else None
+
 def get_connection_params(printer_cfg):
     mode = printer_cfg.get("mode", "lan").lower()
     if mode == "cloud":
-        region = printer_cfg.get("region", "us")
-        host   = CLOUD_BROKERS.get(region, CLOUD_BROKERS["us"])
-        user   = f"u_{printer_cfg['bambu_user_id']}"
-        pwd    = printer_cfg["bambu_token"]
+        region   = printer_cfg.get("region", "us")
+        host     = CLOUD_BROKERS.get(region, CLOUD_BROKERS["us"])
+        token    = printer_cfg.get("bambu_token", "")
+        # Prefer explicitly stored user_id; fall back to JWT-derived value
+        user_id  = printer_cfg.get("bambu_user_id") or get_user_id_from_token(token)
+        user     = f"u_{user_id}"
+        pwd      = token
     else:
         host = printer_cfg["ip"]
         user = "bblp"
@@ -144,6 +259,8 @@ def default_state(printer_cfg):
         "nozzle_temp_r":        None,
         "nozzle_target_l":      None,
         "nozzle_target_r":      None,
+        "nozzle_active_side":   None,  # 'L' or 'R' from extruder.state (H2D)
+        "has_dual_nozzle":      False, # True when nozzle_type starts with HH (H2D)
         "bed_temp":       0.0,
         "bed_target":     0.0,
         "chamber_temp":   0.0,
@@ -183,11 +300,119 @@ for _pid, _codes in _dismissed_hms_store.items():
         log.info(f"[{_pid}] Restored {len(_codes)} dismissed HMS code(s) from disk")
 
 # ---------------------------------------------------------------------------
+# Weather cache
+# ---------------------------------------------------------------------------
+_weather_cache = {"data": None, "fetched_at": 0}
+_WEATHER_TTL   = 1800  # 30 minutes
+
+def fetch_weather():
+    """Fetch weather from wttr.in for the configured location. Returns dict or None."""
+    location = CONFIG.get('weather_location', '').strip()
+    if not location:
+        return None
+    try:
+        url = f"https://wttr.in/{urllib.request.quote(location)}?format=j1"
+        req = urllib.request.Request(url, headers={"User-Agent": "BambuHelperRT/1.4"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+        use_f = CONFIG.get('weather_unit', 'F').upper() == 'F'
+        cur   = data['current_condition'][0]
+        today = data['weather'][0]
+        return {
+            "temp":      cur['temp_F'] if use_f else cur['temp_C'],
+            "feels":     cur['FeelsLikeF'] if use_f else cur['FeelsLikeC'],
+            "high":      today['maxtempF'] if use_f else today['maxtempC'],
+            "low":       today['mintempF'] if use_f else today['mintempC'],
+            "desc":      cur['weatherDesc'][0]['value'],
+            "humidity":  cur['humidity'],
+            "unit":      'F' if use_f else 'C',
+            "location":  location,
+        }
+    except Exception as e:
+        log.warning(f"Weather fetch failed: {e}")
+        return None
+
+def get_weather():
+    """Return cached weather, refreshing if stale."""
+    now = time.time()
+    if now - _weather_cache['fetched_at'] > _WEATHER_TTL or _weather_cache['data'] is None:
+        _weather_cache['data']       = fetch_weather()
+        _weather_cache['fetched_at'] = now
+    return _weather_cache['data']
+
+# ---------------------------------------------------------------------------
+# Print history
+# ---------------------------------------------------------------------------
+PRINT_HISTORY_MAX = 100
+
+def load_print_history():
+    try:
+        with open(PRINT_HISTORY_PATH, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+def save_print_history(history):
+    try:
+        os.makedirs(os.path.dirname(PRINT_HISTORY_PATH), exist_ok=True)
+        with open(PRINT_HISTORY_PATH, 'w') as f:
+            json.dump(history[-PRINT_HISTORY_MAX:], f)
+    except Exception as e:
+        log.warning(f"Could not save print history: {e}")
+
+def record_print_finished(state):
+    """Append a completed print record to history."""
+    name = state.get('print_name', '').strip()
+    if not name:
+        return
+    history = load_print_history()
+    history.append({
+        "printer":   state.get('name', state['id']),
+        "job":       name,
+        "finished":  int(time.time()),
+        "layers":    state.get('layer_total', 0),
+        "started":   state.get('print_start_time', None),
+    })
+    save_print_history(history)
+    log.info(f"[{state['id']}] Print history recorded: {name!r}")
+
+# ---------------------------------------------------------------------------
 # Flask + SocketIO
 # ---------------------------------------------------------------------------
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'bambuhelper-secret'
+app.config['SECRET_KEY'] = CONFIG['secret_key']
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+
+# ---------------------------------------------------------------------------
+# Access control — runs before every request
+# ---------------------------------------------------------------------------
+_OPEN_PATHS = {'/api/auth/pin', '/api/auth/logout'}
+
+@app.before_request
+def access_control():
+    if request.path in _OPEN_PATHS:
+        return  # always allow auth endpoints
+    local = is_local_request()
+    pin   = settings_pin()
+
+    if not local:
+        # Block LAN access if not enabled
+        if not lan_access_enabled():
+            return Response(LAN_BLOCKED_PAGE, status=403, mimetype='text/html')
+        # PIN gates ALL routes from the network
+        if pin and not pin_authenticated():
+            if request.path.startswith('/api/'):
+                return jsonify({"ok": False, "error": "PIN required"}), 401
+            return Response(PIN_PAGE.replace('{next}', request.path), mimetype='text/html')
+    else:
+        # Local (kiosk): enforce PIN when pin_protect_local is enabled
+        if pin and pin_protect_local() and not pin_authenticated():
+            # Gate settings page and all state-changing API calls
+            if request.path == '/settings':
+                return Response(PIN_PAGE.replace('{next}', '/settings'), mimetype='text/html')
+            if request.method != 'GET' and request.path.startswith('/api/'):
+                return jsonify({"ok": False, "error": "PIN required"}), 401
 
 # ---------------------------------------------------------------------------
 # Page routes
@@ -204,6 +429,47 @@ def settings():
 def api_state():
     with state_lock:
         return jsonify([s for s in printer_states.values() if s.get('enabled', True)])
+
+@app.route('/api/token_expiry')
+def api_token_expiry():
+    """Return token expiry info for all cloud-mode printers."""
+    result = []
+    now = int(time.time())
+    for cfg in CONFIG.get('printers', []):
+        if cfg.get('mode', 'lan') == 'cloud' and cfg.get('bambu_token'):
+            exp = get_token_expiry(cfg['bambu_token'])
+            days_left = int((exp - now) / 86400) if exp else None
+            result.append({
+                'id':        cfg['id'],
+                'name':      cfg.get('name', cfg['id']),
+                'exp':       exp,
+                'days_left': days_left,
+            })
+    return jsonify(result)
+
+@app.route('/api/weather')
+def api_weather():
+    return jsonify(get_weather() or {})
+
+@app.route('/api/print_history')
+def api_print_history():
+    return jsonify(load_print_history())
+
+@app.route('/api/print_history/clear', methods=['POST'])
+def api_print_history_clear():
+    save_print_history([])
+    return jsonify({"ok": True})
+
+@app.route('/api/system/weather_settings', methods=['POST'])
+def api_weather_settings():
+    data = request.get_json() or {}
+    CONFIG['weather_location'] = data.get('location', '').strip()
+    CONFIG['weather_unit']     = 'F' if data.get('unit', 'F').upper() == 'F' else 'C'
+    save_config_to_disk(CONFIG)
+    # Invalidate cache so next fetch uses new settings
+    _weather_cache['fetched_at'] = 0
+    _weather_cache['data']       = None
+    return jsonify({"ok": True})
 
 @app.route('/api/config')
 def api_config():
@@ -458,6 +724,19 @@ STAGE_MAP = {
     34: 'Nozzle clog', 64: 'Changing filament', 255: '',
 }
 
+# Known nozzle/temp field names — used to detect undiscovered H2D fields in payloads
+_KNOWN_TEMP_FIELDS = {
+    'nozzle_temper', 'nozzle_target_temper', 'bed_temper', 'bed_target_temper',
+    'chamber_temper', 'nozzle_type', 'nozzle_diameter', 'extruder',
+    'left_nozzle_temper',  'right_nozzle_temper',
+    'nozzle_temper_l',     'nozzle_temper_r',
+    'nozzle_temper0',      'nozzle_temper1',
+    'nozzle_temp_left',    'nozzle_temp_right',
+    'left_nozzle_target_temper',  'right_nozzle_target_temper',
+    'nozzle_target_temper_l',     'nozzle_target_temper_r',
+    'nozzle_target_temper0',      'nozzle_target_temper1',
+}
+
 def parse_print_message(state, msg):
     p = msg.get('print', {})
 
@@ -507,18 +786,37 @@ def parse_print_message(state, msg):
             if rkey in p: state['nozzle_target_r'] = round(float(p[rkey]), 1)
             break
 
+    # H2D extruder object — packed 32-bit temps (low16=actual, high16=target), state bits 4-7 = active nozzle
+    if 'extruder' in p and isinstance(p['extruder'], dict):
+        ext = p['extruder']
+        try:
+            active_nozzle = (int(ext.get('state', 0)) >> 4) & 0x0F
+            if active_nozzle > 1:
+                active_nozzle = 0
+        except (ValueError, TypeError):
+            active_nozzle = 0
+        for entry in ext.get('info', []):
+            nid = entry.get('id', -1)
+            packed = entry.get('temp')
+            if packed is not None:
+                try:
+                    packed = int(packed)
+                    actual = float(packed & 0xFFFF)
+                    target = float((packed >> 16) & 0xFFFF)
+                    if nid == 0:
+                        state['nozzle_temp_l']   = round(actual, 1)
+                        state['nozzle_target_l'] = round(target, 1)
+                    elif nid == 1:
+                        state['nozzle_temp_r']   = round(actual, 1)
+                        state['nozzle_target_r'] = round(target, 1)
+                except (ValueError, TypeError):
+                    pass
+        state['nozzle_active_side'] = 'L' if active_nozzle == 0 else 'R'
+        log.info(f"[{state['id']}] extruder parsed: L={state.get('nozzle_temp_l')}/{state.get('nozzle_target_l')} R={state.get('nozzle_temp_r')}/{state.get('nozzle_target_r')} active={state.get('nozzle_active_side')}")
+
     # Log any unhandled field that looks temperature/nozzle related — helps identify H2D fields
-    _known = {
-        'nozzle_temper','nozzle_target_temper','bed_temper','bed_target_temper',
-        'chamber_temper','nozzle_type','nozzle_diameter',
-        'left_nozzle_temper','right_nozzle_temper','nozzle_temper_l','nozzle_temper_r',
-        'nozzle_temper0','nozzle_temper1','nozzle_temp_left','nozzle_temp_right',
-        'left_nozzle_target_temper','right_nozzle_target_temper',
-        'nozzle_target_temper_l','nozzle_target_temper_r',
-        'nozzle_target_temper0','nozzle_target_temper1',
-    }
     for k, v in p.items():
-        if ('nozzle' in k or 'temper' in k) and k not in _known:
+        if ('nozzle' in k or 'temper' in k) and k not in _KNOWN_TEMP_FIELDS:
             log.info(f"[{state['id']}] UNKNOWN nozzle/temp field: {k} = {v!r}")
     if 'bed_temper'           in p: state['bed_temp']        = round(float(p['bed_temper']), 1)
     if 'bed_target_temper'    in p: state['bed_target']      = round(float(p['bed_target_temper']), 1)
@@ -533,11 +831,14 @@ def parse_print_message(state, msg):
     if 'subtask_name'         in p: state['print_name']      = p.get('subtask_name', '')
     if 'spd_lvl'              in p: state['spd_lvl']          = int(p['spd_lvl'])
     if 'stg_cur'              in p: state['stage']            = STAGE_MAP.get(int(p['stg_cur']), '')
-    if 'nozzle_type'          in p: state['nozzle_type']    = p.get('nozzle_type', '')
+    if 'nozzle_type'          in p:
+        state['nozzle_type'] = p.get('nozzle_type', '')
+        # HH = H2D dual hotend; mark so dashboard always shows L/R bars
+        if state['nozzle_type'].upper().startswith('HH'):
+            state['has_dual_nozzle'] = True
     if 'nozzle_diameter'      in p: state['nozzle_diameter'] = p.get('nozzle_diameter', '')
 
-    
-# Parse AMS tray data
+    # Parse AMS tray data
     if 'ams' in p and isinstance(p['ams'], dict):
         ams_data = p['ams']
         ams_list = ams_data.get('ams', [])
@@ -641,8 +942,12 @@ def parse_print_message(state, msg):
         state['vir_slots'] = vir
 
     if 'gcode_state' in p:
+        prev_state = state.get('gcode_state', '')
         state['gcode_state'] = p['gcode_state']
         state['printing']    = p['gcode_state'] in ('RUNNING', 'PAUSE')
+        # Track print start time
+        if p['gcode_state'] == 'RUNNING' and prev_state not in ('RUNNING', 'PAUSE'):
+            state['print_start_time'] = int(time.time())
 
     if 'print_error' in p:
         if p['print_error'] != 0:
@@ -655,8 +960,11 @@ def parse_print_message(state, msg):
         else:
             state['errors'] = []  # print_error cleared to 0 means error resolved
 
-    if p.get('gcode_state') == 'RUNNING' and state.get('errors'):
-        state['errors'] = []  # resuming from pause/error clears stale error messages
+    if p.get('gcode_state') == 'RUNNING':
+        if state.get('errors'):
+            state['errors'] = []      # resuming from pause/error clears stale print_error
+        if state.get('hms_errors'):
+            state['hms_errors'] = []  # transient HMS codes at print start clear once running
 
     if 'hms' in p:
         hms_list = p['hms']
@@ -683,9 +991,11 @@ def parse_print_message(state, msg):
             state['dismissed_hms'] = []
 
     if p.get('gcode_state') == 'FINISH':
-        state['errors']        = []
-        state['hms_errors']    = []
-        state['dismissed_hms'] = []
+        record_print_finished(state)
+        state['errors']          = []
+        state['hms_errors']      = []
+        state['dismissed_hms']   = []
+        state['print_start_time'] = None
         _dismissed_hms_store.pop(state['id'], None)
         save_dismissed_hms(_dismissed_hms_store)
     state['last_update'] = time.time()
@@ -1061,6 +1371,140 @@ def api_debug_force_state(printer_id):
     return jsonify({"ok": True, "printer_id": printer_id, "applied": data})
 
 # ---------------------------------------------------------------------------
+# API — Bambu Cloud login (token fetch proxy)
+# ---------------------------------------------------------------------------
+@app.route('/api/system/bambu_login', methods=['POST'])
+def api_bambu_login():
+    data     = request.get_json() or {}
+    email    = data.get('email', '').strip()
+    password = data.get('password', '').strip()
+    code     = data.get('code', '').strip()
+    if not email or not password:
+        return jsonify({"ok": False, "error": "Email and password required"})
+    payload = {"account": email, "password": password, "apiError": ""}
+    if code:
+        payload["code"] = code
+    try:
+        req = urllib.request.Request(
+            "https://api.bambulab.com/v1/user-service/user/login",
+            data=json.dumps(payload).encode(),
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "bambu_network_agent/01.09.05.01",
+                "Accept": "application/json",
+                "App-Language": "en",
+            },
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = json.loads(resp.read())
+        if result.get("loginType") == "verifyCode":
+            return jsonify({"ok": False, "needs_code": True,
+                            "message": "Verification code sent — check your email"})
+        token = result.get("accessToken", "")
+        if token:
+            return jsonify({"ok": True, "token": token})
+        return jsonify({"ok": False, "error": result.get("message", "Login failed — check credentials")})
+    except urllib.error.HTTPError as e:
+        try:
+            err = json.loads(e.read())
+            return jsonify({"ok": False, "error": err.get("message", str(e))})
+        except Exception:
+            return jsonify({"ok": False, "error": str(e)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+# ---------------------------------------------------------------------------
+# API — PIN authentication
+# ---------------------------------------------------------------------------
+@app.route('/api/auth/pin', methods=['POST'])
+def api_auth_pin():
+    data = request.get_json() or {}
+    if str(data.get('pin', '')) == settings_pin():
+        session.permanent = True
+        session['pin_authenticated'] = True
+        return jsonify({"ok": True})
+    return jsonify({"ok": False, "error": "Incorrect PIN"})
+
+@app.route('/api/auth/logout', methods=['POST'])
+def api_auth_logout():
+    session.pop('pin_authenticated', None)
+    return jsonify({"ok": True})
+
+# ---------------------------------------------------------------------------
+# API — Settings backup and restore
+# ---------------------------------------------------------------------------
+@app.route('/api/settings/backup')
+def api_settings_backup():
+    try:
+        buf = io.BytesIO(json.dumps(CONFIG, indent=2).encode())
+        buf.seek(0)
+        return send_file(buf, mimetype='application/json',
+                         as_attachment=True, download_name='bambuhelper_config.json')
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+@app.route('/api/settings/restore', methods=['POST'])
+def api_settings_restore():
+    try:
+        f = request.files.get('config')
+        if not f:
+            return jsonify({"ok": False, "error": "No file uploaded"})
+        data = json.loads(f.read())
+        if not validate_and_repair_config(data):
+            return jsonify({"ok": False, "error": "Invalid config file"})
+        # Preserve secret key and access settings from current config
+        data.setdefault('secret_key', CONFIG.get('secret_key', secrets.token_hex(32)))
+        CONFIG.clear()
+        CONFIG.update(data)
+        save_config_to_disk(CONFIG)
+        return jsonify({"ok": True, "message": "Config restored — reboot to apply"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+# ---------------------------------------------------------------------------
+# API — LAN access and PIN management
+# ---------------------------------------------------------------------------
+@app.route('/api/system/lan_access', methods=['POST'])
+def api_system_lan_access():
+    data = request.get_json() or {}
+    CONFIG['lan_access'] = bool(data.get('enabled', False))
+    save_config_to_disk(CONFIG)
+    return jsonify({"ok": True, "lan_access": CONFIG['lan_access']})
+
+@app.route('/api/system/set_pin', methods=['POST'])
+def api_system_set_pin():
+    data = request.get_json() or {}
+    new_pin = str(data.get('pin', '')).strip()
+    CONFIG['settings_pin'] = new_pin
+    save_config_to_disk(CONFIG)
+    if new_pin:
+        session['pin_authenticated'] = True  # keep current session authenticated
+    return jsonify({"ok": True, "pin_set": bool(new_pin)})
+
+@app.route('/api/system/access_info')
+def api_system_access_info():
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('8.8.8.8', 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        local_ip = '?.?.?.?'
+    return jsonify({"ok": True, "lan_access": lan_access_enabled(),
+                    "pin_set": bool(settings_pin()),
+                    "pin_protect_local": pin_protect_local(),
+                    "local_ip": local_ip})
+
+@app.route('/api/system/pin_protect_local', methods=['POST'])
+def api_system_pin_protect_local():
+    data = request.get_json() or {}
+    CONFIG['pin_protect_local'] = bool(data.get('enabled', True))
+    save_config_to_disk(CONFIG)
+    return jsonify({"ok": True, "pin_protect_local": CONFIG['pin_protect_local']})
+
+# ---------------------------------------------------------------------------
 # API — Clear printer errors (manual dismiss for stale cloud MQTT errors)
 # ---------------------------------------------------------------------------
 @app.route('/api/printer/clear_errors', methods=['POST'])
@@ -1147,5 +1591,5 @@ if __name__ == '__main__':
         t.start()
     threading.Thread(target=periodic_broadcast, daemon=True).start()
     threading.Thread(target=display_monitor, daemon=True).start()
-    log.info("Web server starting on port 5000 (localhost only)")
-    socketio.run(app, host='127.0.0.1', port=5000, debug=False, allow_unsafe_werkzeug=True)
+    log.info("Web server starting on port 5000 (LAN access: %s)", lan_access_enabled())
+    socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)
