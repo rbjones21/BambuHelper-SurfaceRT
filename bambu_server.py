@@ -560,23 +560,31 @@ def parse_print_message(state, msg):
         active_id = state.get('ams_active_id')
         trays = []
         for ams_unit in ams_list:
+            dry_setting = ams_unit.get('dry_setting') or {}
+            dry_time    = int(ams_unit.get('dry_time', 0))
+            is_drying   = dry_time > 0 or int(dry_setting.get('dry_temperature', -1)) > 0
+            dry_h       = dry_time // 60
+            dry_m       = dry_time % 60
             for tray in ams_unit.get('tray', []):
                 color     = tray.get('tray_color', '00000000')
                 hex_color = f"#{color[:6]}" if len(color) >= 6 else '#888888'
                 tray_id   = f"{ams_unit.get('id','0')}-{tray.get('id','0')}"
                 has_fil   = bool(tray.get('tray_info_idx'))
                 trays.append({
-                    'id':       tray_id,
-                    'color':    hex_color,
-                    'type':     tray.get('tray_info_idx', ''),
-                    'name':     tray.get('tray_id_name', ''),
-                    'remain':   tray.get('remain', -1),
-                    'temp':     ams_unit.get('temp', ''),
-                    'humidity': ams_unit.get('humidity', ''),
-                    'state':    tray.get('state', 0),
-                    'active':   (active_id is not None and tray_id == active_id) or
-                                (has_fil and tray.get('state') in (24, 27)),
-                    'in_job':   False,
+                    'id':           tray_id,
+                    'color':        hex_color,
+                    'type':         tray.get('tray_info_idx', ''),
+                    'name':         tray.get('tray_id_name', ''),
+                    'remain':       tray.get('remain', -1),
+                    'temp':         ams_unit.get('temp', ''),
+                    'humidity':     ams_unit.get('humidity', ''),
+                    'humidity_pct': ams_unit.get('humidity_raw', ''),
+                    'drying':       is_drying,
+                    'dry_remain':   f"{dry_h}:{dry_m:02d}" if is_drying and dry_time > 0 else '',
+                    'state':        tray.get('state', 0),
+                    'active':       (active_id is not None and tray_id == active_id) or
+                                    (has_fil and tray.get('state') in (24, 27)),
+                    'in_job':       False,
                 })
         if trays:
             state['ams_trays'] = trays
@@ -636,13 +644,19 @@ def parse_print_message(state, msg):
         state['gcode_state'] = p['gcode_state']
         state['printing']    = p['gcode_state'] in ('RUNNING', 'PAUSE')
 
-    if 'print_error' in p and p['print_error'] != 0:
-        code     = p['print_error']
-        msg_text = BAMBU_ERRORS.get(code, f"Error code: {hex(code)}")
-        if msg_text not in state['errors']:
-            state['errors'].append(msg_text)
-            if len(state['errors']) > 5:
-                state['errors'].pop(0)
+    if 'print_error' in p:
+        if p['print_error'] != 0:
+            code     = p['print_error']
+            msg_text = BAMBU_ERRORS.get(code, f"Error code: {hex(code)}")
+            if msg_text not in state['errors']:
+                state['errors'].append(msg_text)
+                if len(state['errors']) > 5:
+                    state['errors'].pop(0)
+        else:
+            state['errors'] = []  # print_error cleared to 0 means error resolved
+
+    if p.get('gcode_state') == 'RUNNING' and state.get('errors'):
+        state['errors'] = []  # resuming from pause/error clears stale error messages
 
     if 'hms' in p:
         hms_list = p['hms']
@@ -656,6 +670,7 @@ def parse_print_message(state, msg):
                 c1 = (code >> 16) & 0xFFFF
                 c2 = code & 0xFFFF
                 formatted.append(f"{a1:04X}-{a2:04X}-{c1:04X}-{c2:04X}")
+            log.info(f"[{state['id']}] HMS codes received: {formatted}")
             dismissed = state.get('dismissed_hms', [])
             # If any code is genuinely new (not previously dismissed), clear the dismissed list
             new_codes = [c for c in formatted if c not in dismissed]
