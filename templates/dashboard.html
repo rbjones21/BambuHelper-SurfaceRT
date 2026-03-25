@@ -514,9 +514,6 @@ function panel(s, idx) {
       units[uid].push(t);
     });
 
-    // If any tray has in_job, prefer that as the active indicator (more reliable in cloud mode)
-    const anyInJob = trays.some(t => t.in_job);
-
     const unitHtml = Object.keys(units).sort().map(uid => {
       const uTrays = units[uid];
       const first  = uTrays[0];
@@ -536,8 +533,8 @@ function panel(s, idx) {
         <div class="ams-trays">
           ${slots.map(t => {
             const inJob     = t && t.in_job;
-            // When any tray has in_job (printing), use that as the indicator; otherwise fall back to active
-            const isActive  = anyInJob ? (t && t.in_job) : (t && t.active);
+            // Use tray_now-based active as the currently-feeding indicator; in_job shows all job trays subtly
+            const isActive  = t && t.active;
             // state 10 = empty, state 24 = no spool/standby; also treat as empty if no filament type
             const isEmpty   = t && (t.state === 10 || t.state === 24 || (!t.type && t.state !== 11 && t.state !== 27));
             const typeLabel = !t ? '--' : isEmpty ? '' : (filamentShort('', t.type) || t.type || '');
@@ -615,7 +612,10 @@ function panel(s, idx) {
   // Nozzle — single bar normally; splits to L/R for H2D or when separate temps arrive
   const nozzleCol  = COLORS.nozzle?.arc || col;
   const slots      = s.vir_slots && s.vir_slots.length >= 2 ? s.vir_slots : null;
-  const hasDualTemp = s.has_dual_nozzle || s.nozzle_temp_l != null || s.nozzle_temp_r != null;
+  // Only show L/R dual bars when we have actual separate per-side data.
+  // has_dual_nozzle alone isn't enough — cloud MQTT alternates a single nozzle_temper reading,
+  // so without real L/R data one side would show 0°C.
+  const hasDualTemp = s.nozzle_temp_l != null || s.nozzle_temp_r != null;
   // Prefer active nozzle reading (target > 0) over idle nozzle reading (H2D cloud MQTT alternates)
   const nozzleTemp = Math.round(s.nozzle_temp_active != null ? s.nozzle_temp_active : (s.nozzle_temp || 0));
   const nozzleTgt  = Math.round(s.nozzle_target_active != null ? s.nozzle_target_active : (s.nozzle_target || 0));

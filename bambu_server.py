@@ -884,7 +884,7 @@ def parse_print_message(state, msg):
                     'dry_remain':   f"{dry_h}:{dry_m:02d}" if is_drying and dry_time > 0 else '',
                     'state':        tray.get('state', 0),
                     'active':       (active_id is not None and tray_id == active_id) or
-                                    (has_fil and tray.get('state') in (24, 27)),
+                                    (has_fil and tray.get('state') == 27),
                     'in_job':       False,
                 })
         if trays:
