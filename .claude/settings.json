@@ -3,7 +3,17 @@
     "allow": [
       "Bash(ssh rjones@10.0.100.208 \"sudo systemctl restart bambuhelper && sleep 6 && curl -s http://localhost:5000/api/debug/last_payload/printer1\")",
       "Bash(ssh rjones@10.0.100.208 \"sleep 10 && curl -s http://localhost:5000/api/debug/last_payload/printer1\")",
-      "Bash(ssh rjones@10.0.100.208 \"cd /opt/bambuhelper && git pull && sudo systemctl restart bambuhelper && sleep 15 && curl -s http://localhost:5000/api/debug/last_payload/printer1\")"
+      "Bash(ssh rjones@10.0.100.208 \"cd /opt/bambuhelper && git pull && sudo systemctl restart bambuhelper && sleep 15 && curl -s http://localhost:5000/api/debug/last_payload/printer1\")",
+      "Bash(ssh rjones@10.0.100.208 \"curl -s http://localhost:5000/api/state | python3 -m json.tool 2>/dev/null | grep -E ''nozzle|ams_active|dual|name'' | head -30\")",
+      "Bash(ssh rjones@10.0.100.208 \"journalctl -u bambuhelper -n 100 --no-pager | grep -i ''H2D\\\\|nozzle\\\\|temper\\\\|extruder\\\\|UNKNOWN'' | tail -40\")",
+      "Bash(ssh rjones@10.0.100.208 \"curl -s http://localhost:5000/api/debug/printer1 2>/dev/null | python3 -m json.tool 2>/dev/null | head -60\")",
+      "Bash(ssh rjones@10.0.100.208 \"grep -n ''inspect\\\\|last_payload\\\\|raw_payload\\\\|/debug'' /opt/bambuhelper/bambu_server.py | head -20\")",
+      "Bash(ssh rjones@10.0.100.208 \"curl -s http://localhost:5000/api/debug/last_payload/printer1 | python3 -m json.tool 2>/dev/null | grep -E ''nozzle|temper|extruder''\")",
+      "Bash(ssh rjones@10.0.100.208 \"journalctl -u bambuhelper --since ''5 minutes ago'' --no-pager | grep ''printer1'' | grep -v ''vir_slot\\\\|unknown\\\\|AMS\\\\|tray'' | tail -20\")",
+      "Bash(ssh rjones@10.0.100.208 \"grep -n ''push_all\\\\|get_version\\\\|publish\\\\|request.*status\\\\|on_connect'' /opt/bambuhelper/bambu_server.py | head -20\")",
+      "Bash(ssh rjones@10.0.100.208 \"grep -n ''_KNOWN_TEMP_FIELDS\\\\|KNOWN_TEMP'' /opt/bambuhelper/bambu_server.py | head -10\")",
+      "Bash(ssh rjones@10.0.100.208 \"journalctl -u bambuhelper --since today --no-pager | grep ''printer1.*nozzle_temp_active\\\\|printer1.*220\\\\|printer1.*extruder'' | tail -20\")",
+      "Bash(ssh rjones@10.0.100.208 \"journalctl -u bambuhelper --since today --no-pager | grep ''printer1'' | grep -v ''vir_slot\\\\|unknown\\\\|AMS\\\\|tray\\\\|HTTP\\\\|GET\\\\|POST'' | tail -20\")"
     ]
   }
 }

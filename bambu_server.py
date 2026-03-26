@@ -792,6 +792,23 @@ def _parse_extruder(state, ext):
                         state['nozzle_target'] = target
                 except (ValueError, TypeError):
                     pass
+            # snow = flat AMS tray index feeding this nozzle (65535 = none)
+            # Only use snow on H2D where encoding is confirmed correct (0-15 = tray index).
+            # H2C uses offset values (257, 259, etc.) — unreliable; rely on tray_now instead.
+            if state.get('has_dual_nozzle') and active_nozzle is not None and nid == active_nozzle:
+                snow = entry.get('snow')
+                if snow is not None:
+                    try:
+                        snow = int(snow)
+                        if 0 <= snow <= 15:
+                            new_id = f"{snow // 4}-{snow % 4}"
+                            if state.get('ams_active_id') != new_id:
+                                log.info(f"[{state['id']}] extruder snow={snow} -> ams_active_id={new_id}")
+                            state['ams_active_id'] = new_id
+                        elif snow in (254, 255, 65535):
+                            state['ams_active_id'] = None
+                    except (ValueError, TypeError):
+                        pass
 
 def parse_print_message(state, msg):
     p = msg.get('print', {})
@@ -867,8 +884,15 @@ def parse_print_message(state, msg):
         # Update persisted active_id when tray_now is explicitly reported
         if tray_now is not None:
             if tray_now < 254:
-                state['ams_active_id'] = f"{tray_now // 4}-{tray_now % 4}"
-                log.info(f"[{state['id']}] AMS tray_now={tray_now} -> ams_active_id={state['ams_active_id']}")
+                new_active = f"{tray_now // 4}-{tray_now % 4}"
+                # During a print job, only trust tray_now if it maps to a job tray
+                # (H2C firmware can transiently report non-job trays during changes)
+                job_slots = state.get('ams_job_slots', [])
+                if not job_slots or new_active in job_slots:
+                    state['ams_active_id'] = new_active
+                    log.info(f"[{state['id']}] AMS tray_now={tray_now} -> ams_active_id={new_active}")
+                else:
+                    log.debug(f"[{state['id']}] AMS tray_now={tray_now} -> {new_active} not in job, ignoring")
             else:
                 state['ams_active_id'] = None  # 254/255 = no AMS tray active
         # Use persisted active_id so the indicator survives payloads that omit tray_now
@@ -907,6 +931,14 @@ def parse_print_message(state, msg):
             if state.get('ams_job_slots'):
                 for tray in state['ams_trays']:
                     tray['in_job'] = tray['id'] in state['ams_job_slots']
+
+    # Refresh active flags on existing trays whenever ams_active_id changes
+    # (tray_now can arrive without full tray data, leaving baked-in flags stale)
+    if state.get('ams_trays'):
+        aid = state.get('ams_active_id')
+        for tray in state['ams_trays']:
+            tray['active'] = (aid is not None and tray['id'] == aid) or \
+                             (bool(tray.get('type')) and tray.get('state') == 27)
 
     # Mark which trays are part of the current print job using mapping field
     if 'mapping' in p:
