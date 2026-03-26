@@ -8,6 +8,7 @@ Bambu Cloud mode (via us.mqtt.bambulab.com) per printer.
 import json
 import os
 import re
+import base64
 import shutil
 import ssl
 import subprocess
@@ -51,6 +52,7 @@ def validate_and_repair_config(config):
         cfg.setdefault("name",    cfg["id"])
         cfg.setdefault("mode",    "cloud")
         cfg.setdefault("enabled", True)
+        cfg.setdefault("serial",  "")
     return True
 
 def save_config_to_disk(config):
@@ -206,7 +208,6 @@ CLOUD_BROKERS = {
 def _decode_jwt_payload(token):
     """Return the decoded JWT payload dict, or {} on failure."""
     try:
-        import base64
         payload_b64 = token.split('.')[1]
         payload_b64 += '=' * (4 - len(payload_b64) % 4)
         return json.loads(base64.urlsafe_b64decode(payload_b64))
@@ -681,7 +682,7 @@ def api_system_terminal():
     try:
         subprocess.Popen(
             ['xterm', '-fs', '14', '-bg', 'black', '-fg', 'green'],
-            env={'DISPLAY': ':0', 'XAUTHORITY': '/home/rjones/.Xauthority'}
+            env={'DISPLAY': ':0', 'XAUTHORITY': os.path.expanduser('~/.Xauthority')}
         )
         return jsonify({"ok": True})
     except Exception as e:
@@ -1161,7 +1162,7 @@ def periodic_broadcast():
 # Display timeout monitor
 # ---------------------------------------------------------------------------
 def display_monitor():
-    DISPLAY_ENV = {'DISPLAY': ':0', 'XAUTHORITY': '/home/rjones/.Xauthority'}
+    DISPLAY_ENV = {'DISPLAY': ':0', 'XAUTHORITY': os.path.expanduser('~/.Xauthority')}
 
     def screen_on():
         subprocess.run(['xset', '-display', ':0', 'dpms', 'force', 'on'],
@@ -1317,8 +1318,21 @@ def api_network_forget():
 @app.route('/api/network/ipconfig', methods=['GET'])
 def api_network_ipconfig():
     try:
+        # Detect the active WiFi connection name dynamically
+        active = subprocess.run(
+            ['nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show', '--active'],
+            capture_output=True, text=True, timeout=5
+        )
+        conn_name = None
+        for line in active.stdout.splitlines():
+            parts = line.split(':')
+            if len(parts) >= 2 and parts[1] == '802-11-wireless':
+                conn_name = parts[0]
+                break
+        if not conn_name:
+            return jsonify({"ok": False, "error": "No active WiFi connection found"})
         result = subprocess.run(
-            ['nmcli', '-t', 'connection', 'show', 'IoTWLan'],
+            ['nmcli', '-t', 'connection', 'show', conn_name],
             capture_output=True, text=True, timeout=5
         )
         method, address, gateway, dns = 'auto', '', '', ''
@@ -1333,7 +1347,7 @@ def api_network_ipconfig():
             elif line.startswith('ipv4.dns:'):
                 val = line.split(':')[1].strip()
                 dns = '' if val == '--' else val
-        return jsonify({"ok": True, "method": method, "address": address,
+        return jsonify({"ok": True, "ssid": conn_name, "method": method, "address": address,
                         "gateway": gateway, "dns": dns})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
@@ -1341,9 +1355,23 @@ def api_network_ipconfig():
 @app.route('/api/network/ipconfig', methods=['POST'])
 def api_network_ipconfig_save():
     try:
-        data    = request.get_json()
-        ssid    = data.get('ssid', 'IoTWLan')
-        method  = data.get('method', 'auto')
+        data   = request.get_json()
+        ssid   = data.get('ssid', '').strip()
+        method = data.get('method', 'auto')
+
+        # If no ssid provided, detect the active WiFi connection
+        if not ssid:
+            active = subprocess.run(
+                ['nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show', '--active'],
+                capture_output=True, text=True, timeout=5
+            )
+            for line in active.stdout.splitlines():
+                parts = line.split(':')
+                if len(parts) >= 2 and parts[1] == '802-11-wireless':
+                    ssid = parts[0]
+                    break
+        if not ssid:
+            return jsonify({"ok": False, "error": "No active WiFi connection found"})
 
         if method == 'auto':
             subprocess.run(['sudo', 'nmcli', 'connection', 'modify', ssid,
@@ -1419,7 +1447,7 @@ def api_debug_force_state(printer_id):
             state['gcode_state'] = data['gcode_state']
         if 'hms_errors' in data:
             state['hms_errors'] = data['hms_errors']
-        socketio.emit('state_update', get_all_states())
+    broadcast_state()
     return jsonify({"ok": True, "printer_id": printer_id, "applied": data})
 
 # ---------------------------------------------------------------------------
