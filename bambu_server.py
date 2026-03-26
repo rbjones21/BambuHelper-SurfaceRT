@@ -253,13 +253,11 @@ def default_state(printer_cfg):
         "progress":       0,
         "nozzle_temp":          0.0,
         "nozzle_target":        0.0,
-        "nozzle_temp_active":   None,  # last reading where target > 0 (H2D active nozzle)
-        "nozzle_target_active": None,
-        "nozzle_temp_l":        None,  # separate L/R temps if LAN mode provides them
-        "nozzle_temp_r":        None,
+        "nozzle_temp_l":        None,  # Left nozzle temp from extruder (id=1)
+        "nozzle_temp_r":        None,  # Right nozzle temp from extruder (id=0)
         "nozzle_target_l":      None,
         "nozzle_target_r":      None,
-        "nozzle_active_side":   None,  # 'L' or 'R' from extruder.state (H2D)
+        "nozzle_active_side":   None,  # 'L' or 'R' from extruder.state
         "has_dual_nozzle":      False, # True when nozzle_type starts with HH (H2D)
         "bed_temp":       0.0,
         "bed_target":     0.0,
@@ -737,6 +735,64 @@ _KNOWN_TEMP_FIELDS = {
     'nozzle_target_temper0',      'nozzle_target_temper1',
 }
 
+def _find_extruder(obj, depth=0):
+    """Recursively search for 'extruder' key in nested dicts (like memmem on raw bytes)."""
+    if depth > 5 or not isinstance(obj, dict):
+        return None
+    if 'extruder' in obj and isinstance(obj['extruder'], dict):
+        return obj['extruder']
+    for v in obj.values():
+        if isinstance(v, dict):
+            found = _find_extruder(v, depth + 1)
+            if found:
+                return found
+    return None
+
+def _parse_extruder(state, ext):
+    """Parse H2D/H2C extruder object — packed 32-bit temps and active nozzle."""
+    if not isinstance(ext, dict):
+        return
+    # Only update active nozzle when 'state' key is explicitly present
+    # (delta messages often omit it — defaulting to 0 would wrongly set R)
+    active_nozzle = None
+    if 'state' in ext:
+        try:
+            active_nozzle = (int(ext['state']) >> 4) & 0x0F
+            if active_nozzle > 1:
+                active_nozzle = 0
+            state['nozzle_active_side'] = 'R' if active_nozzle == 0 else 'L'
+        except (ValueError, TypeError):
+            pass
+    # Use previously determined active side if state was absent
+    if active_nozzle is None:
+        side = state.get('nozzle_active_side')
+        active_nozzle = 0 if side == 'R' else 1 if side == 'L' else None
+    info = ext.get('info', [])
+    if len(info) >= 2:
+        is_dual_hw = state.get('nozzle_type', '').upper().startswith('HH')
+        if is_dual_hw:
+            state['has_dual_nozzle'] = True
+        # Store temps for BOTH nozzles + set main nozzle_temp to active one
+        for entry in info:
+            nid = entry.get('id', -1)
+            packed = entry.get('temp')
+            if packed is not None:
+                try:
+                    packed = int(packed)
+                    actual = round(float(packed & 0xFFFF), 1)
+                    target = round(float((packed >> 16) & 0xFFFF), 1)
+                    if nid == 0:    # Right nozzle
+                        state['nozzle_temp_r']   = actual
+                        state['nozzle_target_r'] = target
+                    elif nid == 1:  # Left nozzle
+                        state['nozzle_temp_l']   = actual
+                        state['nozzle_target_l'] = target
+                    if active_nozzle is not None and nid == active_nozzle:
+                        state['nozzle_temp']   = actual
+                        state['nozzle_target'] = target
+                except (ValueError, TypeError):
+                    pass
+
 def parse_print_message(state, msg):
     p = msg.get('print', {})
 
@@ -748,71 +804,29 @@ def parse_print_message(state, msg):
     if 'ams' in p:
         last_ams_payloads[state['id']] = p
 
-    if 'nozzle_temper' in p:
-        state['nozzle_temp'] = round(float(p['nozzle_temper']), 1)
-    if 'nozzle_target_temper' in p:
-        state['nozzle_target'] = round(float(p['nozzle_target_temper']), 1)
-    # Track the active nozzle separately — on the H2D cloud MQTT alternates between
-    # reporting the active nozzle (target > 0) and idle nozzle (target == 0).
-    # Keep the last active reading so the gauge always shows the meaningful temp.
-    if 'nozzle_temper' in p and 'nozzle_target_temper' in p:
-        if round(float(p['nozzle_target_temper']), 1) > 0:
-            state['nozzle_temp_active']   = round(float(p['nozzle_temper']), 1)
-            state['nozzle_target_active'] = round(float(p['nozzle_target_temper']), 1)
-    # Clear active readings when printer finishes or goes idle
+    # For dual-nozzle (H2D): nozzle_temper is the INACTIVE nozzle — skip it.
+    # Active nozzle temp comes from the extruder object (parsed below or at root level).
+    # For single-nozzle printers: use nozzle_temper normally.
+    if not state.get('has_dual_nozzle'):
+        if 'nozzle_temper' in p:
+            state['nozzle_temp'] = round(float(p['nozzle_temper']), 1)
+        if 'nozzle_target_temper' in p:
+            state['nozzle_target'] = round(float(p['nozzle_target_temper']), 1)
+    else:
+        # H2D: only use nozzle_temper as fallback when idle (no extruder data)
+        if 'nozzle_temper' in p and p.get('gcode_state') in ('IDLE', 'FINISH', None):
+            state['nozzle_temp'] = round(float(p['nozzle_temper']), 1)
+        if 'nozzle_target_temper' in p and p.get('gcode_state') in ('IDLE', 'FINISH', None):
+            state['nozzle_target'] = round(float(p['nozzle_target_temper']), 1)
+
+    # Clear active side when printer finishes or goes idle
     if p.get('gcode_state') in ('IDLE', 'FINISH'):
-        state['nozzle_temp_active']   = None
-        state['nozzle_target_active'] = None
-        state['ams_active_id']        = None
+        state['nozzle_active_side'] = None
+        state['ams_active_id']      = None
 
-    # Dual nozzle temps — try known H2D field variants
-    for lkey, rkey in [
-        ('left_nozzle_temper',  'right_nozzle_temper'),
-        ('nozzle_temper_l',     'nozzle_temper_r'),
-        ('nozzle_temper0',      'nozzle_temper1'),
-        ('nozzle_temp_left',    'nozzle_temp_right'),
-    ]:
-        if lkey in p or rkey in p:
-            if lkey in p: state['nozzle_temp_l'] = round(float(p[lkey]), 1)
-            if rkey in p: state['nozzle_temp_r'] = round(float(p[rkey]), 1)
-            break
-    for lkey, rkey in [
-        ('left_nozzle_target_temper',  'right_nozzle_target_temper'),
-        ('nozzle_target_temper_l',     'nozzle_target_temper_r'),
-        ('nozzle_target_temper0',      'nozzle_target_temper1'),
-    ]:
-        if lkey in p or rkey in p:
-            if lkey in p: state['nozzle_target_l'] = round(float(p[lkey]), 1)
-            if rkey in p: state['nozzle_target_r'] = round(float(p[rkey]), 1)
-            break
-
-    # H2D extruder object — packed 32-bit temps (low16=actual, high16=target), state bits 4-7 = active nozzle
-    if 'extruder' in p and isinstance(p['extruder'], dict):
-        ext = p['extruder']
-        try:
-            active_nozzle = (int(ext.get('state', 0)) >> 4) & 0x0F
-            if active_nozzle > 1:
-                active_nozzle = 0
-        except (ValueError, TypeError):
-            active_nozzle = 0
-        for entry in ext.get('info', []):
-            nid = entry.get('id', -1)
-            packed = entry.get('temp')
-            if packed is not None:
-                try:
-                    packed = int(packed)
-                    actual = float(packed & 0xFFFF)
-                    target = float((packed >> 16) & 0xFFFF)
-                    if nid == 0:
-                        state['nozzle_temp_l']   = round(actual, 1)
-                        state['nozzle_target_l'] = round(target, 1)
-                    elif nid == 1:
-                        state['nozzle_temp_r']   = round(actual, 1)
-                        state['nozzle_target_r'] = round(target, 1)
-                except (ValueError, TypeError):
-                    pass
-        state['nozzle_active_side'] = 'L' if active_nozzle == 0 else 'R'
-        log.info(f"[{state['id']}] extruder parsed: L={state.get('nozzle_temp_l')}/{state.get('nozzle_target_l')} R={state.get('nozzle_temp_r')}/{state.get('nozzle_target_r')} active={state.get('nozzle_active_side')}")
+    # Parse extruder from inside print object (if present)
+    if 'extruder' in p:
+        _parse_extruder(state, p['extruder'])
 
     # Log any unhandled field that looks temperature/nozzle related — helps identify H2D fields
     for k, v in p.items():
@@ -1039,6 +1053,12 @@ def make_mqtt_client(printer_cfg):
             with state_lock:
                 if 'print' in payload:
                     parse_print_message(printer_states[printer_id], payload)
+                # Search for extruder anywhere in the message (root, print.device, etc.)
+                # Keralots uses memmem on raw bytes — it finds extruder regardless of nesting
+                state = printer_states[printer_id]
+                ext = _find_extruder(payload)
+                if ext is not None:
+                    _parse_extruder(state, ext)
             broadcast_state()
         except Exception as e:
             log.error(f"[{printer_id}] Parse error: {e}")
@@ -1331,9 +1351,9 @@ def api_debug_last_payload(printer_id):
     payload = last_rich_payloads.get(printer_id) or last_payloads.get(printer_id)
     if payload is None:
         return jsonify({"ok": False, "error": "No payload received yet"})
-    # Scalar fields + vir_slot for inspection
+    # Scalar fields + vir_slot + extruder for inspection
     simple = {k: v for k, v in payload.items()
-              if not isinstance(v, (dict, list)) or k in ('vir_slot',)}
+              if not isinstance(v, (dict, list)) or k in ('vir_slot', 'extruder', 'device')}
     return jsonify({"ok": True, "printer_id": printer_id,
                     "from_rich": printer_id in last_rich_payloads, "fields": simple})
 

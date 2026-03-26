@@ -49,7 +49,7 @@ Bambu Cloud MQTT → bambu_server.py (Flask + SocketIO :5000) → WebSocket → 
 - **ETA** — estimated finish time (12h or 24h format)
 - **LED progress bar** — H2-style 40-segment bar showing completion %
 - **6 arc gauges** — Nozzle temp, Bed temp, Chamber temp, Part Fan %, Aux Fan %, Exhaust Fan %
-- **H2D dual nozzle** — L and R nozzle bars shown separately; active side indicated; reads `extruder` MQTT object when available
+- **Dual nozzle display** — L and R nozzle temp bars shown side-by-side for H2D and H2C; active nozzle highlighted with `*`; reads packed 32-bit temps from `extruder` object (found inside `device` sub-object in cloud MQTT)
 - **Nozzle type** — active nozzle type shown under nozzle gauge (e.g. HS01-0.4, HH01)
 - **Virtual slot dots** — two colored dots under nozzle gauge showing left/right nozzle filament colors
 - **AMS strip** — filament color swatches for all AMS slots with remaining %, active tray highlighted, empty slots faded (detects states 10, 24, and untyped slots)
@@ -138,10 +138,11 @@ the bottom of each printer panel.
 - **Empty slots** — faded to indicate no filament loaded; detects states 10, 24, and slots with no filament type
 - **Multiple AMS units** — supports up to 2 AMS units (8 trays) per printer
 
-> **Note:** In cloud MQTT mode, `nozzle_temper` reports only the **inactive** nozzle on the H2D. True L/R temps
-> require the `extruder` object which is sent during some print events. When unavailable, the known reading
-> is shown on the L bar as a fallback. In-job tray detection uses the `mapping` field rather than the stale
-> `tray_now` field for accuracy during cloud prints.
+> **Note:** In cloud MQTT mode, `nozzle_temper` reports only the **inactive** nozzle on dual-nozzle printers.
+> True L/R temps come from the `extruder` object, which is nested inside the `device` sub-object of the MQTT
+> payload (not inside `print`). The server uses a recursive search to locate it regardless of nesting depth.
+> For single-nozzle printers, `nozzle_temper` is used normally. In-job tray detection uses the `mapping` field
+> rather than the stale `tray_now` field for accuracy during cloud prints.
 
 ---
 
@@ -340,7 +341,7 @@ The web server binds to `0.0.0.0` (all interfaces) to support optional LAN acces
 - **Token expiry warning** — dashboard shows orange/red banner when any cloud token is within 30/7 days of expiry; expiry date shown in settings after token is set
 - **Weather on idle clock** — current conditions, temperature, and high/low shown on the idle clock screen; location set via on-screen QWERTY keyboard in settings
 - **Print history** — completed prints logged automatically (name, printer, layers, duration, date); viewable and clearable in Settings → Print History
-- **H2D dual nozzle display** — L and R bars always shown for H2D (`HH` nozzle type); active side indicated by dot; parses `extruder` MQTT object (packed 32-bit temps) when available; falls back to the one reading cloud MQTT provides
+- **Dual nozzle display** — L and R temp bars shown for H2D and H2C; active nozzle highlighted; parses `extruder` object from `device` sub-object in cloud MQTT (packed 32-bit temps: low16 = actual, high16 = target); `nozzle_temper` skipped for dual-nozzle printers (it reports the inactive nozzle only)
 - **AMS empty slot fix** — correctly handles state 10, state 24, and untyped slots as empty; fixes false-loaded display on AMS 2 slot 4
 - **Active filament fix** — prefers `in_job` flag (from `mapping` field) over stale `tray_now` for active tray highlighting during cloud prints
 - **HMS errors clear on RUNNING** — transient HMS codes at print start are cleared when the print resumes/begins, avoiding spurious error overlays

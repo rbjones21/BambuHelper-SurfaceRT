@@ -167,6 +167,8 @@
   .vg-mark  { position: absolute; left: 0; right: 0; height: 2px; background: rgba(255,255,255,0.55); border-radius: 1px; }
   .vg-val   { font-family: 'Share Tech Mono', monospace; font-size: clamp(14px, 2vw, 22px); font-weight: 700; color: var(--text); line-height: 1; }
   .vg-sub   { font-family: 'Share Tech Mono', monospace; font-size: clamp(10px, 1.2vw, 13px); color: var(--muted); line-height: 1; }
+  .vg-col   { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 0; }
+  .vg-col .vg-bar { flex: 1; width: 20px; }
   .vg-dots  { display: flex; gap: 4px; justify-content: center; }
   .vg-dot   { width: 9px; height: 9px; border-radius: 50%; border: 1px solid rgba(128,128,128,0.35); }
   #printers.single .vg-bar { width: 38px; }
@@ -609,41 +611,32 @@ function panel(s, idx) {
   const arcBed     = arcSVG(Math.round(s.bed_temp||0),     120, Math.round(s.bed_target||0), COLORS.bed?.arc || '#ff9944');
   const arcChamber = arcSVG(Math.round(s.chamber_temp||0),  60, 0,                           '#aa66ff');
 
-  // Nozzle — single bar normally; splits to L/R for H2D or when separate temps arrive
+  // Nozzle — dual bars (L/R) when extruder data available, single bar otherwise
   const nozzleCol  = COLORS.nozzle?.arc || col;
   const slots      = s.vir_slots && s.vir_slots.length >= 2 ? s.vir_slots : null;
-  // Only show L/R dual bars when we have actual separate per-side data.
-  // has_dual_nozzle alone isn't enough — cloud MQTT alternates a single nozzle_temper reading,
-  // so without real L/R data one side would show 0°C.
-  const hasDualTemp = s.nozzle_temp_l != null || s.nozzle_temp_r != null;
-  // Prefer active nozzle reading (target > 0) over idle nozzle reading (H2D cloud MQTT alternates)
-  const nozzleTemp = Math.round(s.nozzle_temp_active != null ? s.nozzle_temp_active : (s.nozzle_temp || 0));
-  const nozzleTgt  = Math.round(s.nozzle_target_active != null ? s.nozzle_target_active : (s.nozzle_target || 0));
+  const nozzleTemp = Math.round(s.nozzle_temp || 0);
+  const nozzleTgt  = Math.round(s.nozzle_target || 0);
   const nFPct      = Math.min(100, nozzleTemp / 300 * 100).toFixed(1);
   const nTPct      = nozzleTgt > 0 ? Math.min(100, nozzleTgt / 300 * 100).toFixed(1) : 0;
-  // Dual bar helpers
-  // When extruder-specific data is absent, fall back to nozzle_temp/target on the side we know
-  // (cloud MQTT H2D sends only the INACTIVE nozzle via nozzle_temper; active side unknown without extruder obj)
   const nozzleActiveSide = s.nozzle_active_side || null;  // 'L', 'R', or null
-  const noSideData = s.nozzle_temp_l == null && s.nozzle_temp_r == null;
-  // If active side known: put fallback on that side; otherwise put it on L by default
-  const fallbackOnL = nozzleActiveSide !== 'R';
-  const nLTemp = Math.round(s.nozzle_temp_l != null ? s.nozzle_temp_l : (noSideData && fallbackOnL ? nozzleTemp : 0));
-  const nRTemp = Math.round(s.nozzle_temp_r != null ? s.nozzle_temp_r : (noSideData && !fallbackOnL ? nozzleTemp : 0));
-  const nLTgt  = s.nozzle_target_l != null ? Math.round(s.nozzle_target_l) : (noSideData && fallbackOnL ? nozzleTgt : 0);
-  const nRTgt  = s.nozzle_target_r != null ? Math.round(s.nozzle_target_r) : (noSideData && !fallbackOnL ? nozzleTgt : 0);
-  // isActive: true = active nozzle (dot indicator), false = idle nozzle, null = no side info (both equal)
-  const dualBar = (temp, tgt, label, dotCol, isActive) => {
+  const hasDualTemp = s.nozzle_temp_l != null || s.nozzle_temp_r != null;
+  const nLTemp = Math.round(s.nozzle_temp_l != null ? s.nozzle_temp_l : 0);
+  const nRTemp = Math.round(s.nozzle_temp_r != null ? s.nozzle_temp_r : 0);
+  const nLTgt  = s.nozzle_target_l != null ? Math.round(s.nozzle_target_l) : 0;
+  const nRTgt  = s.nozzle_target_r != null ? Math.round(s.nozzle_target_r) : 0;
+  const dualBar = (temp, tgt, label, isActive) => {
     const fp = Math.min(100, temp / 300 * 100).toFixed(1);
     const tp = tgt > 0 ? Math.min(100, tgt / 300 * 100).toFixed(1) : 0;
-    const activeDot = isActive === true ? `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${nozzleCol};vertical-align:middle;margin-left:3px;box-shadow:0 0 4px ${nozzleCol}"></span>` : '';
-    return `<div class="vg-col">
-      <div style="font-size:9px;color:var(--muted);letter-spacing:1px;font-family:'Share Tech Mono',monospace">${label}${activeDot}</div>
+    const dimmed = isActive === false;
+    const barCol = dimmed ? 'var(--muted)' : nozzleCol;
+    const barShadow = dimmed ? '' : `box-shadow:0 -2px 8px ${nozzleCol}55`;
+    return `<div class="vg-col" style="${dimmed ? 'opacity:0.5' : ''}">
+      <div style="font-size:9px;color:var(--muted);letter-spacing:1px;font-family:'Share Tech Mono',monospace">${label}${isActive ? ' *' : ''}</div>
       <div class="vg-bar">
-        <div class="vg-fill" style="height:${fp}%;background:${nozzleCol};box-shadow:0 -2px 8px ${nozzleCol}55"></div>
+        <div class="vg-fill" style="height:${fp}%;background:${barCol};${barShadow}"></div>
         ${tgt > 0 ? `<div class="vg-mark" style="bottom:${tp}%"></div>` : ''}
       </div>
-      <div class="vg-val" style="font-size:clamp(11px,1.6vw,17px)">${dotCol ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dotCol};vertical-align:middle;margin-right:2px"></span>` : ''}${temp}</div>
+      <div class="vg-val" style="font-size:clamp(11px,1.6vw,17px)">${temp}</div>
       <div class="vg-sub">${tgt > 0 ? '&#9658;' + tgt + '&deg;' : '&deg;C'}</div>
     </div>`;
   };
@@ -703,24 +696,16 @@ function panel(s, idx) {
         <div class="gc">
           ${(() => {
             const nt = s.nozzle_type || '';
-            // Dual-nozzle printers: no L/R suffix on the card label (bars handle it below)
-            // Single-nozzle: append side if discernible from nozzle_type string
-            let side = '';
-            if (!hasDualTemp) {
-              const isR = nt.endsWith('1') || nt.includes('R');
-              const isL = nt.endsWith('0') || nt.includes('L');
-              side = slots ? (isR ? ' R' : isL ? ' L' : '') : '';
-            }
-            return `<div class="gc-lbl">Nozzle${side}
+            return `<div class="gc-lbl">Nozzle${hasDualTemp ? '' : (nozzleActiveSide ? ' ' + nozzleActiveSide : '')}
               ${nt ? `<span style="font-size:9px;font-weight:400;display:block;margin-top:1px">${nt}</span>` : ''}
             </div>`;
           })()}
           ${hasDualTemp ? `
           <div class="vg-outer" style="gap:5px">
-            ${dualBar(nLTemp, nLTgt, 'L', slots ? slots[0].color : null, nozzleActiveSide ? nozzleActiveSide === 'L' : null)}
-            ${dualBar(nRTemp, nRTgt, 'R', slots ? slots[1].color : null, nozzleActiveSide ? nozzleActiveSide === 'R' : null)}
+            ${dualBar(nLTemp, nLTgt, 'L', nozzleActiveSide === 'L')}
+            ${dualBar(nRTemp, nRTgt, 'R', nozzleActiveSide === 'R')}
           </div>` : (() => {
-            const idleNozzle = s.printing && nozzleTgt === 0 && !hasDualTemp;
+            const idleNozzle = s.printing && nozzleTgt === 0;
             const barCol = idleNozzle ? 'var(--muted)' : nozzleCol;
             const barShadow = idleNozzle ? '' : `box-shadow:0 -2px 8px ${nozzleCol}55`;
             return `
