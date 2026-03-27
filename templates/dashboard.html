@@ -130,6 +130,7 @@
   /* ── Gauge grid — 4 cols top row + 3 cols bottom row ── */
   .gg  { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 1fr; gap: 5px; padding: 3px 8px; flex: 1; min-height: 0; overflow: hidden; }
   .gc  { background: var(--track); border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px; padding: 3px 4px 5px; overflow: hidden; min-height: 0; }
+  .gg-fan-row { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; min-height: 0; }
   .gc-lbl { font-size: 14px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--text); }
 
   /* Arc gauge */
@@ -223,6 +224,7 @@
   #printers.single .led-pct sup { font-size: 20px; }
   #printers.single .led-strip   { height: 16px; }
   #printers.single .gg          { grid-template-columns: repeat(7, 1fr); grid-auto-rows: 1fr; gap: 8px; padding: 8px 12px; }
+  #printers.single .gg-fan-row  { gap: 8px; }
   #printers.single .gc-lbl      { font-size: 17px; }
   #printers.single .arc-v       { font-size: clamp(22px, 3vw, 36px) !important; }
   #printers.single .arc-u       { font-size: clamp(13px, 1.6vw, 18px) !important; }
@@ -801,9 +803,11 @@ function panel(s, idx) {
           <div class="vg-sub">${spdLabels[spdLvl] || 'Standard'}</div>`;
           })()}
         </div>
+        <div class="gg-fan-row">
         ${fanCell('Part Fan', s.fan_part,    'fan_part', fancol)}
         ${fanCell('Aux Fan',  s.fan_aux,     'fan_aux',  '#44aaff')}
         ${fanCell('Exhaust',  s.fan_chamber, 'fan_cham', '#aa66ff')}
+        </div>
       </div>
       ${amsSection}
       </div>
