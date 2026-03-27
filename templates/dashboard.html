@@ -177,11 +177,12 @@
   #printers.single .vg-sub { font-size: clamp(12px, 1.4vw, 15px) !important; }
 
   /* ── HMS error codes ── */
-  .hms-strip      { padding: 4px 14px; background: rgba(255,34,68,0.06); border-top: 1px solid rgba(255,34,68,0.12); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex-shrink: 0; position: relative; z-index: 11; }
-  .hms-entry      { display: flex; align-items: center; gap: 5px; cursor: pointer; border-radius: 3px; padding: 1px 4px; }
+  .hms-strip      { padding: 4px 14px; background: rgba(255,34,68,0.06); border-top: 1px solid rgba(255,34,68,0.12); display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; position: relative; z-index: 11; }
+  .hms-strip-row  { display: flex; align-items: center; gap: 8px; }
+  .hms-entry      { display: flex; align-items: center; gap: 8px; cursor: pointer; border-radius: 3px; padding: 2px 4px; flex: 1; min-width: 0; }
   .hms-entry:hover { background: rgba(255,34,68,0.10); }
-  .hms-code       { font-size: 10px; color: #ff6677; font-family: 'Share Tech Mono', monospace; border: 1px solid rgba(255,34,68,0.3); border-radius: 3px; padding: 1px 6px; letter-spacing: 0.5px; white-space: nowrap; }
-  .hms-desc       { font-size: 11px; color: rgba(255,102,119,0.85); font-family: 'Rajdhani', sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+  .hms-desc       { font-size: 13px; color: #ff4455; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hms-code       { font-size: 10px; color: rgba(255,102,119,0.6); font-family: 'Share Tech Mono', monospace; white-space: nowrap; flex-shrink: 0; }
   /* QR overlay */
   #qr-overlay     { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 999; align-items: center; justify-content: center; }
   #qr-overlay.vis { display: flex; }
@@ -501,12 +502,17 @@ function panel(s, idx) {
     errHtml += `<div class="err-strip">⚠ ${s.errors[s.errors.length-1]}</div>`;
   if (s.hms_errors && s.hms_errors.length)
     errHtml += `<div class="hms-strip">
-      ${s.hms_errors.map(e => {
+      ${s.hms_errors.map((e, i) => {
         const entry = typeof e === 'object' ? e : {code: e, desc: ''};
-        const descHtml = entry.desc ? `<span class="hms-desc">${entry.desc}</span>` : '';
-        return `<span class="hms-entry" onclick="showHmsQR(${JSON.stringify(entry)})"><span class="hms-code">${entry.code}</span>${descHtml}</span>`;
+        const descHtml = entry.desc
+          ? `<span class="hms-desc">⚠ ${entry.desc}</span>`
+          : `<span class="hms-desc">⚠ ${entry.code}</span>`;
+        const codeHtml = entry.desc ? `<span class="hms-code">[${entry.code}]</span>` : '';
+        const dismissBtn = i === 0
+          ? `<button class="hms-dismiss" onclick="clearErrors('${s.id}')" title="Dismiss errors">✕</button>`
+          : '';
+        return `<div class="hms-strip-row"><span class="hms-entry" onclick="showHmsQR(${JSON.stringify(entry)})">${descHtml}${codeHtml}</span>${dismissBtn}</div>`;
       }).join('')}
-      <button class="hms-dismiss" onclick="clearErrors('${s.id}')" title="Dismiss errors">✕</button>
     </div>`;
   const errStrip = errHtml;
 
