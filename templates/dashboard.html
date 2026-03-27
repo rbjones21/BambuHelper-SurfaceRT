@@ -495,6 +495,7 @@ function panel(s, idx) {
   const pct    = s.progress || 0;
   const isPrinting = sc === 'printing', isPaused = sc === 'paused';
   const isActive   = isPrinting || isPaused;
+  const wikiSeries = ((s.nozzle_type||'').toUpperCase().startsWith('HH') || (s.nozzle_type||'').toUpperCase().startsWith('HS')) ? 'h2' : 'x1';
 
   // Offline overlay
   const offline = !s.connected ? `
@@ -508,14 +509,14 @@ function panel(s, idx) {
   let errHtml = '';
   if (s.errors && s.errors.length) {
     const e = s.errors[s.errors.length-1];
-    const entry = typeof e === 'object' ? {code: e.code, desc: e.msg} : {code: null, desc: e};
+    const entry = typeof e === 'object' ? {code: e.code, desc: e.msg, series: wikiSeries} : {code: null, desc: e};
     const clickAttr = entry.code ? `onclick="showHmsQR(${htmlAttr(entry)})" style="cursor:pointer"` : '';
     errHtml += `<div class="err-strip" ${clickAttr}>⚠ ${entry.desc}</div>`;
   }
   if (s.hms_errors && s.hms_errors.length)
     errHtml += `<div class="hms-strip">
       ${s.hms_errors.map((e, i) => {
-        const entry = typeof e === 'object' ? e : {code: e, desc: ''};
+        const entry = typeof e === 'object' ? {...e, series: wikiSeries} : {code: e, desc: '', series: wikiSeries};
         const descHtml = entry.desc
           ? `<span class="hms-desc">⚠ ${entry.desc}</span>`
           : `<span class="hms-desc">⚠ ${entry.code}</span>`;
@@ -696,12 +697,12 @@ function panel(s, idx) {
     const icon    = isErr ? '⚠' : '⏸';
     const lbl     = isErr ? 'Error' : 'Paused';
     const hmsEntries = (s.hms_errors || []).map(e => {
-      const entry = typeof e === 'object' ? e : {code: e, desc: ''};
+      const entry = typeof e === 'object' ? {...e, series: wikiSeries} : {code: e, desc: '', series: wikiSeries};
       const descTxt = entry.desc ? `<div class="pnl-overlay-code-desc">${entry.desc}</div>` : '';
       return `<div class="pnl-overlay-code" onclick="showHmsQR(${htmlAttr(entry)})">${entry.code}${descTxt}</div>`;
     });
     const printEntries = (s.errors || []).filter(e => typeof e === 'object' && e.code).map(e => {
-      const entry = {code: e.code, desc: e.msg};
+      const entry = {code: e.code, desc: e.msg, series: wikiSeries};
       return `<div class="pnl-overlay-code" onclick="showHmsQR(${htmlAttr(entry)})"><div class="pnl-overlay-code-desc">${e.msg}</div></div>`;
     });
     const codes = [...hmsEntries, ...printEntries].join('');
@@ -894,10 +895,11 @@ updateBattery();
 
 // ── HMS QR code overlay ───────────────────────────────────────────────────
 function showHmsQR(entry) {
-  // entry may be {code, desc} or a legacy plain string
+  // entry may be {code, desc, series} or a legacy plain string
   const code = typeof entry === 'object' ? entry.code : entry;
   const desc = typeof entry === 'object' ? (entry.desc || '') : '';
-  const url  = `https://wiki.bambulab.com/en/hms/home#${code.replace(/-/g,'_')}`;
+  const series = (typeof entry === 'object' && entry.series) || 'x1';
+  const url  = `https://wiki.bambulab.com/en/${series}/troubleshooting/hmscode/${code.replace(/-/g,'_')}`;
   document.getElementById('qr-code-lbl').textContent = code;
   const descEl = document.getElementById('qr-desc-lbl');
   descEl.textContent = desc;
