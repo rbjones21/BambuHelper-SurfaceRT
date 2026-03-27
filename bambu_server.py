@@ -573,7 +573,10 @@ def access_control():
             return Response(PIN_PAGE.replace('{next}', request.path), mimetype='text/html')
     else:
         # Local (kiosk): enforce PIN when pin_protect_local is enabled
+        # Debug endpoints are always allowed from localhost
         if pin and pin_protect_local() and not pin_authenticated():
+            if request.path.startswith('/api/debug/'):
+                return  # debug endpoints always allowed from localhost
             # Gate settings page and all state-changing API calls
             if request.path == '/settings':
                 return Response(PIN_PAGE.replace('{next}', '/settings'), mimetype='text/html')
@@ -1671,8 +1674,11 @@ def api_debug_force_state(printer_id):
         state = printer_states[printer_id]
         if 'gcode_state' in data:
             state['gcode_state'] = data['gcode_state']
+            state['printing'] = data['gcode_state'] in ('RUNNING', 'PAUSE')
         if 'hms_errors' in data:
             state['hms_errors'] = data['hms_errors']
+        if 'errors' in data:
+            state['errors'] = data['errors']
     broadcast_state()
     return jsonify({"ok": True, "printer_id": printer_id, "applied": data})
 
