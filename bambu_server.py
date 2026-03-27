@@ -934,6 +934,25 @@ _KNOWN_TEMP_FIELDS = {
     'nozzle_target_temper0',      'nozzle_target_temper1',
 }
 
+def _decode_tray_index(val):
+    """Decode AMS tray index from snow/tray_now — handles both flat and 256-encoded formats.
+    H2D uses flat indexing: 0-3=AMS1, 4-7=AMS2, etc.
+    H2C uses 256-encoded: ams_id*256 + tray_id (e.g. 259 = AMS2 tray 3).
+    Returns 'ams_id-tray_id' string or None for invalid/empty values."""
+    if val in (254, 255, 65279, 65535):
+        return None
+    if val >= 256:
+        # 256-encoded (H2C): ams_id in high byte, tray_id in low byte
+        ams_id  = (val >> 8) & 0xFF
+        tray_id = val & 0xFF
+        if 0 <= tray_id <= 3:
+            return f"{ams_id}-{tray_id}"
+        return None
+    if 0 <= val <= 15:
+        # Flat indexing (H2D): 0-3=AMS1, 4-7=AMS2
+        return f"{val // 4}-{val % 4}"
+    return None
+
 def _find_extruder(obj, depth=0):
     """Recursively search for 'extruder' key in nested dicts (like memmem on raw bytes)."""
     if depth > 5 or not isinstance(obj, dict):
@@ -968,7 +987,8 @@ def _parse_extruder(state, ext):
         active_nozzle = 0 if side == 'R' else 1 if side == 'L' else None
     info = ext.get('info', [])
     if len(info) >= 2:
-        is_dual_hw = state.get('nozzle_type', '').upper().startswith('HH')
+        nt_upper = state.get('nozzle_type', '').upper()
+        is_dual_hw = nt_upper.startswith('HH') or nt_upper.startswith('HS')
         if is_dual_hw:
             state['has_dual_nozzle'] = True
         # Store temps for BOTH nozzles + set main nozzle_temp to active one
@@ -991,20 +1011,21 @@ def _parse_extruder(state, ext):
                         state['nozzle_target'] = target
                 except (ValueError, TypeError):
                     pass
-            # snow = flat AMS tray index feeding this nozzle (65535 = none)
-            # Only use snow on H2D where encoding is confirmed correct (0-15 = tray index).
-            # H2C uses offset values (257, 259, etc.) — unreliable; rely on tray_now instead.
+            # snow = AMS tray index feeding this nozzle
+            # H2D: flat index 0-15 (snow // 4 = ams_id, snow % 4 = tray_id)
+            # H2C: 256-encoded (snow // 256 = ams_id, snow % 256 = tray_id), e.g. 259 = AMS1 tray 3
+            # Values 254, 255, 65279, 65535 = no AMS tray active
             if state.get('has_dual_nozzle') and active_nozzle is not None and nid == active_nozzle:
                 snow = entry.get('snow')
                 if snow is not None:
                     try:
                         snow = int(snow)
-                        if 0 <= snow <= 15:
-                            new_id = f"{snow // 4}-{snow % 4}"
+                        new_id = _decode_tray_index(snow)
+                        if new_id is not None:
                             if state.get('ams_active_id') != new_id:
                                 log.info(f"[{state['id']}] extruder snow={snow} -> ams_active_id={new_id}")
                             state['ams_active_id'] = new_id
-                        elif snow in (254, 255, 65535):
+                        elif snow in (254, 255, 65279, 65535):
                             state['ams_active_id'] = None
                     except (ValueError, TypeError):
                         pass
@@ -1083,12 +1104,12 @@ def parse_print_message(state, msg):
                 tray_now = None
         # Update persisted active_id when tray_now is explicitly reported
         if tray_now is not None:
-            if tray_now < 254:
-                new_active = f"{tray_now // 4}-{tray_now % 4}"
+            new_active = _decode_tray_index(tray_now)
+            if new_active is not None:
                 state['ams_active_id'] = new_active
                 log.info(f"[{state['id']}] AMS tray_now={tray_now} -> ams_active_id={new_active}")
-            else:
-                state['ams_active_id'] = None  # 254/255 = no AMS tray active
+            elif tray_now in (254, 255, 65279, 65535):
+                state['ams_active_id'] = None  # no AMS tray active
         # Use persisted active_id so the indicator survives payloads that omit tray_now
         active_id = state.get('ams_active_id')
         trays = []
