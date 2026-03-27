@@ -8,6 +8,7 @@ Bambu Cloud mode (via us.mqtt.bambulab.com) per printer.
 import json
 import os
 import re
+import base64
 import shutil
 import ssl
 import subprocess
@@ -51,6 +52,7 @@ def validate_and_repair_config(config):
         cfg.setdefault("name",    cfg["id"])
         cfg.setdefault("mode",    "cloud")
         cfg.setdefault("enabled", True)
+        cfg.setdefault("serial",  "")
     return True
 
 def save_config_to_disk(config):
@@ -195,6 +197,161 @@ def save_dismissed_hms(dismissed):
 _dismissed_hms_store = load_dismissed_hms()
 
 # ---------------------------------------------------------------------------
+# HMS description cache + cloud lookup
+# ---------------------------------------------------------------------------
+# Small local fallback for the most common codes — avoids a network call for
+# the codes users encounter most often.  Keys use the canonical XXXX-XXXX-XXXX-XXXX
+# format (upper-case).  AMS slot variants (0700/0701/… and 1800/…) share a
+# common entry because the prefix varies per slot but the error meaning is the same.
+_HMS_FALLBACK = {
+    # Filament / AMS
+    "0700-2000-0002-0001": "AMS filament ran out",
+    "0700-2000-0002-0002": "AMS slot is empty",
+    "0700-2000-0002-0003": "AMS filament may be broken inside AMS",
+    "0700-2000-0002-0004": "AMS filament may be broken in toolhead",
+    "0700-2000-0002-0005": "AMS filament ran out — purge abnormal",
+    "0700-2000-0002-0006": "AMS switch failed — filament not detected after switch",
+    "0700-7000-0002-0007": "AMS filament ran out — insert new filament and retry",
+    "0700-7000-0002-0001": "Failed to pull filament from extruder — check for clog",
+    "0700-7000-0002-0002": "Failed to feed filament into toolhead — check if stuck",
+    "0700-7000-0002-0003": "Failed to extrude filament — check extruder/nozzle clog",
+    "0700-7000-0002-0004": "Failed to pull filament back to AMS — check if stuck",
+    "0700-7000-0002-0006": "Timeout purging old filament — check clog",
+    "07FF-2000-0002-0001": "External filament ran out — load new filament",
+    "07FF-2000-0002-0002": "External filament missing — load new filament",
+    # Nozzle / hotend
+    "0300-0200-0001-0001": "Nozzle temperature abnormal — heater may be short circuit",
+    "0300-0200-0001-0002": "Nozzle temperature abnormal — heater may be open circuit",
+    "0300-0200-0001-0003": "Nozzle temperature abnormal — heater over temperature",
+    "0300-0200-0001-0006": "Nozzle temperature abnormal — sensor may be short circuit",
+    "0300-0200-0001-0007": "Nozzle temperature abnormal — sensor may be open circuit",
+    "0300-0200-0001-0009": "Nozzle temperature abnormal — hotend may not be installed",
+    # Heatbed
+    "0300-0100-0001-0003": "Heatbed temperature abnormal — heater over temperature",
+    "0300-0100-0001-0006": "Heatbed temperature abnormal — sensor short circuit",
+    "0300-0100-0001-0007": "Heatbed temperature abnormal — sensor open circuit",
+    "0300-0100-0001-0008": "Heatbed heating abnormal — heating modules may be broken",
+    "0300-0100-0001-000A": "Heatbed temperature abnormal — AC board may be broken",
+    # Bed leveling / Z
+    "0300-0D00-0002-0001": "Heatbed homing abnormal — check for nozzle residue",
+    "0300-0D00-0001-0003": "Build plate not placed properly",
+    "0300-0D00-0001-000B": "Z axis stuck — check Z sliders for foreign matter",
+    # Motors
+    "0300-0600-0001-0001": "Motor-A open circuit — check connector or motor",
+    "0300-0600-0001-0002": "Motor-A short circuit — motor may have failed",
+    "0300-0700-0001-0001": "Motor-B open circuit — check connector or motor",
+    "0300-0800-0001-0001": "Motor-Z open circuit — check connector or motor",
+    # Fans
+    "0300-0300-0001-0001": "Hotend cooling fan stopped — may be stuck or disconnected",
+    "0300-0300-0002-0002": "Hotend fan speed slow",
+    "0300-0400-0002-0001": "Part cooling fan too slow or stopped",
+    # Extruder
+    "0300-1A00-0002-0001": "Nozzle wrapped in filament or build plate placed incorrectly",
+    "0300-1A00-0002-0002": "Nozzle clog detected by extrusion force sensor",
+    # Chamber
+    "0300-9000-0001-0001": "Chamber heating failed — heater may not be blowing hot air",
+    "0300-9000-0001-0002": "Chamber heating failed — may not be enclosed or ambient too cold",
+    "0300-9400-0003-0001": "Chamber cooling too slow — open cover to assist cooling",
+    # System / AP
+    "0500-0300-0001-0001": "MC module malfunctioning — restart device",
+    "0500-0300-0001-0002": "Toolhead malfunctioning — restart device",
+    "0500-0300-0001-0003": "AMS module malfunctioning — restart device",
+    "0500-0100-0003-0004": "SD card is full",
+    "0500-0100-0003-0005": "SD card error",
+    "0500-0200-0002-0001": "Failed to connect to internet — check network",
+    "0500-0400-0001-0001": "Failed to download print job — check network",
+    # Lidar / AI
+    "0C00-0100-0001-0004": "Micro Lidar lens dirty",
+    "0C00-0300-0003-0006": "Purged filament piled up in waste chute",
+    "0C00-0300-0003-0008": "Possible spaghetti defects detected",
+    "0C00-0300-0002-000C": "Build plate marker not detected",
+    # Power
+    "0300-4100-0001-0001": "System voltage unstable — power failure protection triggered",
+}
+
+# In-memory cache: code_str (XXXX-XXXX-XXXX-XXXX upper) → description string or None
+_hms_desc_cache: dict = {}
+_hms_desc_lock  = threading.Lock()
+
+def _normalise_hms_code(code: str) -> str:
+    """Return upper-case code with dashes: 0700-2000-0002-0001."""
+    return code.upper().replace('_', '-')
+
+def _ams_generic_key(code: str) -> str:
+    """
+    AMS error codes share the same meaning across slots/units.
+    Map common AMS prefixes to the canonical '0700' variant so the
+    fallback table gets a hit without needing 200+ entries.
+    AMS unit prefixes: 0700-0707, 1800-1807, 0580-0587
+    AMS-lite prefixes: 1200-1203
+    """
+    ams_prefixes = {
+        '0701','0702','0703','0704','0705','0706','0707',
+        '1800','1801','1802','1803','1804','1805','1806','1807',
+        '0580','0581','0582','0583','0584','0585','0586','0587',
+        '1201','1202','1203',
+    }
+    parts = code.split('-')
+    if len(parts) == 4 and parts[0] in ams_prefixes:
+        return '0700-' + '-'.join(parts[1:])
+    return code
+
+def lookup_hms_description(code: str) -> str:
+    """Return a human-readable description for an HMS code.
+
+    Strategy:
+    1. Check in-memory cache (hit → instant return).
+    2. Check local fallback table (covers the most common codes, including
+       AMS slot generalisation).
+    3. Query Bambu's cloud HMS API.  Result is cached regardless.
+    Falls back to empty string on any error — never raises.
+    """
+    norm    = _normalise_hms_code(code)
+    generic = _normalise_hms_code(_ams_generic_key(norm))
+
+    with _hms_desc_lock:
+        if norm in _hms_desc_cache:
+            return _hms_desc_cache[norm]
+
+    # Local fallback
+    desc = _HMS_FALLBACK.get(norm) or _HMS_FALLBACK.get(generic) or ''
+
+    if not desc:
+        # Cloud lookup — format the code as expected by Bambu's query API
+        # The API expects the code WITHOUT dashes, 16 hex chars
+        api_code = norm.replace('-', '_')  # e.g. 0700_2000_0002_0001
+        try:
+            url = f"https://e.bambulab.com/query.php?lang=en&e={api_code}"
+            req = urllib.request.Request(url, headers={"User-Agent": "BambuHelper/1.0"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                body = resp.read().decode('utf-8', errors='replace')
+            data = json.loads(body)
+            # Response shape: {"result":0, "data":{"device_hms":{"en":[{"ecode":"…","intro":"…"}]}}}
+            device_hms = (data.get('data') or {}).get('device_hms') or {}
+            entries    = device_hms.get('en') or []
+            if not entries:
+                # Some responses have device_error instead
+                device_err = (data.get('data') or {}).get('device_error') or {}
+                entries    = device_err.get('en') or []
+            if entries and isinstance(entries, list):
+                intro = entries[0].get('intro') or ''
+                desc  = intro.strip()
+        except Exception as e:
+            log.debug(f"HMS cloud lookup failed for {norm}: {e}")
+
+    with _hms_desc_lock:
+        _hms_desc_cache[norm] = desc
+    return desc
+
+def _enrich_hms_codes(codes: list) -> list:
+    """Convert a list of code strings into [{"code": …, "desc": …}] dicts."""
+    result = []
+    for c in codes:
+        desc = lookup_hms_description(c)
+        result.append({"code": c, "desc": desc})
+    return result
+
+# ---------------------------------------------------------------------------
 # Cloud broker config
 # ---------------------------------------------------------------------------
 CLOUD_BROKERS = {
@@ -206,7 +363,6 @@ CLOUD_BROKERS = {
 def _decode_jwt_payload(token):
     """Return the decoded JWT payload dict, or {} on failure."""
     try:
-        import base64
         payload_b64 = token.split('.')[1]
         payload_b64 += '=' * (4 - len(payload_b64) % 4)
         return json.loads(base64.urlsafe_b64decode(payload_b64))
@@ -681,7 +837,7 @@ def api_system_terminal():
     try:
         subprocess.Popen(
             ['xterm', '-fs', '14', '-bg', 'black', '-fg', 'green'],
-            env={'DISPLAY': ':0', 'XAUTHORITY': '/home/rjones/.Xauthority'}
+            env={'DISPLAY': ':0', 'XAUTHORITY': os.path.expanduser('~/.Xauthority')}
         )
         return jsonify({"ok": True})
     except Exception as e:
@@ -1031,7 +1187,9 @@ def parse_print_message(state, msg):
             if new_codes:
                 state['dismissed_hms'] = []
                 dismissed = []
-            state['hms_errors'] = [c for c in formatted if c not in dismissed]
+            active = [c for c in formatted if c not in dismissed]
+            # Enrich with descriptions (uses cache — no repeated network calls)
+            state['hms_errors'] = _enrich_hms_codes(active)
         else:
             state['hms_errors']    = []
             state['dismissed_hms'] = []
@@ -1161,7 +1319,7 @@ def periodic_broadcast():
 # Display timeout monitor
 # ---------------------------------------------------------------------------
 def display_monitor():
-    DISPLAY_ENV = {'DISPLAY': ':0', 'XAUTHORITY': '/home/rjones/.Xauthority'}
+    DISPLAY_ENV = {'DISPLAY': ':0', 'XAUTHORITY': os.path.expanduser('~/.Xauthority')}
 
     def screen_on():
         subprocess.run(['xset', '-display', ':0', 'dpms', 'force', 'on'],
@@ -1317,8 +1475,21 @@ def api_network_forget():
 @app.route('/api/network/ipconfig', methods=['GET'])
 def api_network_ipconfig():
     try:
+        # Detect the active WiFi connection name dynamically
+        active = subprocess.run(
+            ['nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show', '--active'],
+            capture_output=True, text=True, timeout=5
+        )
+        conn_name = None
+        for line in active.stdout.splitlines():
+            parts = line.split(':')
+            if len(parts) >= 2 and parts[1] == '802-11-wireless':
+                conn_name = parts[0]
+                break
+        if not conn_name:
+            return jsonify({"ok": False, "error": "No active WiFi connection found"})
         result = subprocess.run(
-            ['nmcli', '-t', 'connection', 'show', 'IoTWLan'],
+            ['nmcli', '-t', 'connection', 'show', conn_name],
             capture_output=True, text=True, timeout=5
         )
         method, address, gateway, dns = 'auto', '', '', ''
@@ -1333,7 +1504,7 @@ def api_network_ipconfig():
             elif line.startswith('ipv4.dns:'):
                 val = line.split(':')[1].strip()
                 dns = '' if val == '--' else val
-        return jsonify({"ok": True, "method": method, "address": address,
+        return jsonify({"ok": True, "ssid": conn_name, "method": method, "address": address,
                         "gateway": gateway, "dns": dns})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
@@ -1341,9 +1512,23 @@ def api_network_ipconfig():
 @app.route('/api/network/ipconfig', methods=['POST'])
 def api_network_ipconfig_save():
     try:
-        data    = request.get_json()
-        ssid    = data.get('ssid', 'IoTWLan')
-        method  = data.get('method', 'auto')
+        data   = request.get_json()
+        ssid   = data.get('ssid', '').strip()
+        method = data.get('method', 'auto')
+
+        # If no ssid provided, detect the active WiFi connection
+        if not ssid:
+            active = subprocess.run(
+                ['nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show', '--active'],
+                capture_output=True, text=True, timeout=5
+            )
+            for line in active.stdout.splitlines():
+                parts = line.split(':')
+                if len(parts) >= 2 and parts[1] == '802-11-wireless':
+                    ssid = parts[0]
+                    break
+        if not ssid:
+            return jsonify({"ok": False, "error": "No active WiFi connection found"})
 
         if method == 'auto':
             subprocess.run(['sudo', 'nmcli', 'connection', 'modify', ssid,
@@ -1419,7 +1604,7 @@ def api_debug_force_state(printer_id):
             state['gcode_state'] = data['gcode_state']
         if 'hms_errors' in data:
             state['hms_errors'] = data['hms_errors']
-        socketio.emit('state_update', get_all_states())
+    broadcast_state()
     return jsonify({"ok": True, "printer_id": printer_id, "applied": data})
 
 # ---------------------------------------------------------------------------
@@ -1566,7 +1751,9 @@ def api_printer_clear_errors():
         with state_lock:
             if printer_id not in printer_states:
                 return jsonify({"ok": False, "error": "Printer not found"})
-            codes = list(printer_states[printer_id].get('hms_errors', []))
+            raw_hms = printer_states[printer_id].get('hms_errors', [])
+            # hms_errors may be [{"code":…,"desc":…}] dicts or legacy plain strings
+            codes = [e['code'] if isinstance(e, dict) else e for e in raw_hms]
             printer_states[printer_id]['dismissed_hms'] = codes
             printer_states[printer_id]['errors']        = []
             printer_states[printer_id]['hms_errors']    = []
