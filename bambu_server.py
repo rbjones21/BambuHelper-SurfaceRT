@@ -260,6 +260,17 @@ _HMS_FALLBACK = {
     "0500-0100-0003-0005": "SD card error",
     "0500-0200-0002-0001": "Failed to connect to internet — check network",
     "0500-0400-0001-0001": "Failed to download print job — check network",
+    # Camera / Live View
+    "0500-0600-0002-0001": "Toolhead camera not connected — check hardware connection",
+    "0500-0600-0002-0002": "Nozzle camera not connected — check hardware connection",
+    "0500-0600-0002-0004": "Live View camera not connected — check hardware connection",
+    "0500-0600-0002-0031": "Toolhead camera not connected — check cable connections",
+    "0500-0600-0002-0032": "Nozzle camera not connected — check cable connections",
+    "0500-0600-0002-0034": "Live View camera not connected — check cable connections",
+    "0500-0600-0002-0044": "Live View camera not connected — check cable connections",
+    # Build plate / print file
+    "0500-8051-0001-0001": "Build plate type does not match the Gcode file — adjust slicer settings or use correct plate",
+    "0500-8051-0003-3C5E": "Build plate type does not match the Gcode file — adjust slicer settings or use correct plate",
     # Lidar / AI
     "0C00-0100-0001-0004": "Micro Lidar lens dirty",
     "0C00-0300-0003-0006": "Purged filament piled up in waste chute",
@@ -886,6 +897,7 @@ BAMBU_ERRORS = {
     0x05000014: "Heatbreak cooling failed",
     0x05000015: "Extruder motor abnormal",
     0x05000016: "Print head door open",
+    0x05008051: "Build plate type does not match Gcode — adjust slicer settings or use correct plate",
     0x0C00000F: "AMS filament mismatch",
     0x0C000010: "AMS communication error",
     0x0C000011: "AMS slot empty",
