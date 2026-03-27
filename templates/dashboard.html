@@ -380,6 +380,11 @@ setInterval(() => {
 // ── Arc gauge geometry ────────────────────────────────────────────────────
 const AS = 225, AW = 270; // arc start angle, arc width
 
+// HTML-escape a JSON string for safe use inside onclick="" attributes
+function htmlAttr(obj) {
+  return JSON.stringify(obj).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
 function pt(cx, cy, r, deg) {
   const a = (deg - 90) * Math.PI / 180;
   return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
@@ -504,7 +509,7 @@ function panel(s, idx) {
   if (s.errors && s.errors.length) {
     const e = s.errors[s.errors.length-1];
     const entry = typeof e === 'object' ? {code: e.code, desc: e.msg} : {code: null, desc: e};
-    const clickAttr = entry.code ? `onclick="showHmsQR(${JSON.stringify(entry)})" style="cursor:pointer"` : '';
+    const clickAttr = entry.code ? `onclick="showHmsQR(${htmlAttr(entry)})" style="cursor:pointer"` : '';
     errHtml += `<div class="err-strip" ${clickAttr}>⚠ ${entry.desc}</div>`;
   }
   if (s.hms_errors && s.hms_errors.length)
@@ -518,7 +523,7 @@ function panel(s, idx) {
         const dismissBtn = i === 0
           ? `<button class="hms-dismiss" onclick="clearErrors('${s.id}')" title="Dismiss errors">✕</button>`
           : '';
-        return `<div class="hms-strip-row"><span class="hms-entry" onclick="showHmsQR(${JSON.stringify(entry)})">${descHtml}${codeHtml}</span>${dismissBtn}</div>`;
+        return `<div class="hms-strip-row"><span class="hms-entry" onclick="showHmsQR(${htmlAttr(entry)})">${descHtml}${codeHtml}</span>${dismissBtn}</div>`;
       }).join('')}
     </div>`;
   const errStrip = errHtml;
@@ -693,11 +698,11 @@ function panel(s, idx) {
     const hmsEntries = (s.hms_errors || []).map(e => {
       const entry = typeof e === 'object' ? e : {code: e, desc: ''};
       const descTxt = entry.desc ? `<div class="pnl-overlay-code-desc">${entry.desc}</div>` : '';
-      return `<div class="pnl-overlay-code" onclick="showHmsQR(${JSON.stringify(entry)})">${entry.code}${descTxt}</div>`;
+      return `<div class="pnl-overlay-code" onclick="showHmsQR(${htmlAttr(entry)})">${entry.code}${descTxt}</div>`;
     });
     const printEntries = (s.errors || []).filter(e => typeof e === 'object' && e.code).map(e => {
       const entry = {code: e.code, desc: e.msg};
-      return `<div class="pnl-overlay-code" onclick="showHmsQR(${JSON.stringify(entry)})"><div class="pnl-overlay-code-desc">${e.msg}</div></div>`;
+      return `<div class="pnl-overlay-code" onclick="showHmsQR(${htmlAttr(entry)})"><div class="pnl-overlay-code-desc">${e.msg}</div></div>`;
     });
     const codes = [...hmsEntries, ...printEntries].join('');
     return `<div class="pnl-overlay ${sc}">
