@@ -680,11 +680,16 @@ function panel(s, idx) {
     const isErr   = sc === 'error';
     const icon    = isErr ? '⚠' : '⏸';
     const lbl     = isErr ? 'Error' : 'Paused';
-    const codes   = (s.hms_errors || []).map(e => {
+    const hmsEntries = (s.hms_errors || []).map(e => {
       const entry = typeof e === 'object' ? e : {code: e, desc: ''};
       const descTxt = entry.desc ? `<div class="pnl-overlay-code-desc">${entry.desc}</div>` : '';
       return `<div class="pnl-overlay-code" onclick="showHmsQR(${JSON.stringify(entry)})">${entry.code}${descTxt}</div>`;
-    }).join('');
+    });
+    const printEntries = (s.errors || []).filter(e => typeof e === 'object' && e.code).map(e => {
+      const entry = {code: e.code, desc: e.msg};
+      return `<div class="pnl-overlay-code" onclick="showHmsQR(${JSON.stringify(entry)})"><div class="pnl-overlay-code-desc">${e.msg}</div></div>`;
+    });
+    const codes = [...hmsEntries, ...printEntries].join('');
     return `<div class="pnl-overlay ${sc}">
       <div class="pnl-overlay-icon">${icon}</div>
       <div class="pnl-overlay-lbl">${lbl}</div>
