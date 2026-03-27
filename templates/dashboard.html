@@ -127,8 +127,8 @@
   .seg.tip   { animation: tip 1s ease-in-out infinite; }
   @keyframes tip { 0%,100%{opacity:1} 50%{opacity:0.35} }
 
-  /* ── Gauge grid — 3 cols (6 in single mode) ── */
-  .gg  { display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; gap: 5px; padding: 3px 8px; flex: 1; min-height: 0; overflow: hidden; }
+  /* ── Gauge grid — 4 cols top row + 3 cols bottom row ── */
+  .gg  { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 1fr; gap: 5px; padding: 3px 8px; flex: 1; min-height: 0; overflow: hidden; }
   .gc  { background: var(--track); border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px; padding: 3px 4px 5px; overflow: hidden; min-height: 0; }
   .gc-lbl { font-size: 14px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--text); }
 
@@ -222,7 +222,7 @@
   #printers.single .led-pct     { font-size: 42px; }
   #printers.single .led-pct sup { font-size: 20px; }
   #printers.single .led-strip   { height: 16px; }
-  #printers.single .gg          { grid-template-columns: repeat(6, 1fr); grid-auto-rows: 1fr; gap: 8px; padding: 8px 12px; }
+  #printers.single .gg          { grid-template-columns: repeat(7, 1fr); grid-auto-rows: 1fr; gap: 8px; padding: 8px 12px; }
   #printers.single .gc-lbl      { font-size: 17px; }
   #printers.single .arc-v       { font-size: clamp(22px, 3vw, 36px) !important; }
   #printers.single .arc-u       { font-size: clamp(13px, 1.6vw, 18px) !important; }
@@ -625,9 +625,16 @@ function panel(s, idx) {
       ${etaBlock}
     </div>`;
 
-  // Arc gauges (bed + chamber)
-  const arcBed     = arcSVG(Math.round(s.bed_temp||0),     120, Math.round(s.bed_target||0), COLORS.bed?.arc || '#ff9944');
-  const arcChamber = arcSVG(Math.round(s.chamber_temp||0),  60, 0,                           '#aa66ff');
+  // Bar gauges for bed + chamber + speed
+  const bedCol     = COLORS.bed?.arc || '#ff9944';
+  const chamberCol = '#aa66ff';
+  const speedCol   = '#00e878';
+  const bedTemp    = Math.round(s.bed_temp || 0);
+  const bedTgt     = Math.round(s.bed_target || 0);
+  const chamberTemp = Math.round(s.chamber_temp || 0);
+  const spdMag     = s.spd_mag || 100;
+  const spdLvl     = s.spd_lvl || 2;
+  const spdLabels  = { 1: 'Silent', 2: 'Standard', 3: 'Sport', 4: 'Ludicrous' };
 
   // Nozzle — dual bars (L/R) when extruder data available, single bar otherwise
   const nozzleCol  = COLORS.nozzle?.arc || col;
@@ -751,24 +758,48 @@ function panel(s, idx) {
         </div>
         <div class="gc">
           <div class="gc-lbl">Bed</div>
-          <div class="arc-box">
-            ${arcBed}
-            <div class="arc-over">
-              <div class="arc-v">${Math.round(s.bed_temp||0)}</div>
-              <div class="arc-u">°C</div>
-              ${s.bed_target > 0 ? `<div class="arc-tgt">▶${Math.round(s.bed_target)}°</div>` : ''}
+          ${(() => {
+            const bFPct = Math.min(100, bedTemp / 120 * 100).toFixed(1);
+            const bTPct = bedTgt > 0 ? Math.min(100, bedTgt / 120 * 100).toFixed(1) : 0;
+            return `
+          <div class="vg-outer">
+            <div class="vg-bar">
+              <div class="vg-fill" style="height:${bFPct}%;background:${bedCol};${bedTemp > 0 ? `box-shadow:0 -2px 8px ${bedCol}55` : ''}"></div>
+              ${bedTgt > 0 ? `<div class="vg-mark" style="bottom:${bTPct}%"></div>` : ''}
             </div>
           </div>
+          <div class="vg-val">${bedTemp}</div>
+          <div class="vg-sub">${bedTgt > 0 ? '&#9658;' + bedTgt + '&deg;' : '&deg;C'}</div>`;
+          })()}
         </div>
         <div class="gc">
           <div class="gc-lbl">Chamber</div>
-          <div class="arc-box">
-            ${arcChamber}
-            <div class="arc-over">
-              <div class="arc-v">${Math.round(s.chamber_temp||0)}</div>
-              <div class="arc-u">°C</div>
+          ${(() => {
+            const cFPct = Math.min(100, chamberTemp / 60 * 100).toFixed(1);
+            return `
+          <div class="vg-outer">
+            <div class="vg-bar">
+              <div class="vg-fill" style="height:${cFPct}%;background:${chamberCol};${chamberTemp > 0 ? `box-shadow:0 -2px 8px ${chamberCol}55` : ''}"></div>
             </div>
           </div>
+          <div class="vg-val">${chamberTemp}</div>
+          <div class="vg-sub">&deg;C</div>`;
+          })()}
+        </div>
+        <div class="gc">
+          <div class="gc-lbl">Speed</div>
+          ${(() => {
+            const sFPct = Math.min(100, spdMag / 166 * 100).toFixed(1);
+            const sCol  = spdLvl >= 4 ? '#ff3344' : spdLvl >= 3 ? '#ffcc00' : speedCol;
+            return `
+          <div class="vg-outer">
+            <div class="vg-bar">
+              <div class="vg-fill" style="height:${sFPct}%;background:${sCol};box-shadow:0 -2px 8px ${sCol}55"></div>
+            </div>
+          </div>
+          <div class="vg-val">${spdMag}%</div>
+          <div class="vg-sub">${spdLabels[spdLvl] || 'Standard'}</div>`;
+          })()}
         </div>
         ${fanCell('Part Fan', s.fan_part,    'fan_part', fancol)}
         ${fanCell('Aux Fan',  s.fan_aux,     'fan_aux',  '#44aaff')}

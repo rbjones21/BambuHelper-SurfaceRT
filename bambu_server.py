@@ -441,6 +441,7 @@ def default_state(printer_cfg):
         "hms_errors":     [],
         "dismissed_hms":  [],  # codes dismissed by user — suppressed until new codes arrive
         "spd_lvl":        2,
+        "spd_mag":        100,
         "stage":          "",
         "last_update":    0,
         "nozzle_type":    "",
@@ -1059,6 +1060,7 @@ def parse_print_message(state, msg):
     if 'mc_remaining_time'    in p: state['time_remaining']  = int(p['mc_remaining_time'])
     if 'subtask_name'         in p: state['print_name']      = p.get('subtask_name', '')
     if 'spd_lvl'              in p: state['spd_lvl']          = int(p['spd_lvl'])
+    if 'spd_mag'              in p: state['spd_mag']          = int(p['spd_mag'])
     if 'stg_cur'              in p: state['stage']            = STAGE_MAP.get(int(p['stg_cur']), '')
     if 'nozzle_type'          in p:
         state['nozzle_type'] = p.get('nozzle_type', '')
