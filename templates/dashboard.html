@@ -266,6 +266,7 @@
     <div id="qr-code-lbl"></div>
     <div id="qr-desc-lbl"></div>
     <img id="qr-img" src="" alt="QR Code"/>
+    <a id="qr-link" href="#" target="_blank" style="font-size:13px;color:#ff6677;font-family:'Share Tech Mono',monospace;word-break:break-all;text-align:center;text-decoration:underline;max-width:220px;">Open Wiki Page</a>
     <button id="qr-close" onclick="hideHmsQR()">Close</button>
   </div>
 </div>
@@ -863,6 +864,7 @@ function showHmsQR(entry) {
   descEl.style.display = desc ? '' : 'none';
   document.getElementById('qr-img').src =
     `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}`;
+  document.getElementById('qr-link').href = url;
   document.getElementById('qr-overlay').classList.add('vis');
 }
 function hideHmsQR() {
