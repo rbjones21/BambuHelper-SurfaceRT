@@ -498,8 +498,12 @@ function panel(s, idx) {
 
   // Error strip + HMS codes with wiki links
   let errHtml = '';
-  if (s.errors && s.errors.length)
-    errHtml += `<div class="err-strip">⚠ ${s.errors[s.errors.length-1]}</div>`;
+  if (s.errors && s.errors.length) {
+    const e = s.errors[s.errors.length-1];
+    const entry = typeof e === 'object' ? {code: e.code, desc: e.msg} : {code: null, desc: e};
+    const clickAttr = entry.code ? `onclick="showHmsQR(${JSON.stringify(entry)})" style="cursor:pointer"` : '';
+    errHtml += `<div class="err-strip" ${clickAttr}>⚠ ${entry.desc}</div>`;
+  }
   if (s.hms_errors && s.hms_errors.length)
     errHtml += `<div class="hms-strip">
       ${s.hms_errors.map((e, i) => {

@@ -1197,8 +1197,12 @@ def parse_print_message(state, msg):
         if p['print_error'] != 0:
             code     = p['print_error']
             msg_text = BAMBU_ERRORS.get(code, f"Error code: {hex(code)}")
-            if msg_text not in state['errors']:
-                state['errors'].append(msg_text)
+            # Format as partial HMS code (upper/lower 16-bit words) for wiki QR link
+            hms_code = f"{(code >> 16) & 0xFFFF:04X}-{code & 0xFFFF:04X}-0000-0000"
+            entry    = {'code': hms_code, 'msg': msg_text}
+            if not any(e.get('msg') == msg_text if isinstance(e, dict) else e == msg_text
+                       for e in state['errors']):
+                state['errors'].append(entry)
                 if len(state['errors']) > 5:
                     state['errors'].pop(0)
         else:
