@@ -633,6 +633,24 @@
         For info on running Debian on SurfaceRT: <a href="https://open-rt.gitbook.io/open-surfacert/surface-rt/linux" style="color:var(--accent)">open-rt.gitbook.io</a><br><br>
         Project repo: <a href="https://github.com/rbjones21/BambuHelper-SurfaceRT" style="color:var(--accent)">rbjones21/BambuHelper-SurfaceRT</a>
       </p>
+
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--track)">
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:12px;color:var(--muted)">Installed:</span>
+            <span id="ver-local" style="font-family:monospace;font-size:14px;color:var(--accent)">…</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:12px;color:var(--muted)">Latest:</span>
+            <span id="ver-remote" style="font-family:monospace;font-size:14px;color:var(--muted)">—</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn" onclick="checkForUpdate()">Check for Updates</button>
+          <button id="btn-do-update" class="btn" style="display:none;background:var(--accent);color:#000" onclick="doUpdate()">Update Now</button>
+        </div>
+        <div id="update-status" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -1419,8 +1437,50 @@ async function saveIPConfig() {
   } catch(e) { showToast('Failed to apply settings', 'error'); }
 }
 
+// ── Version / Update ───────────────────────────────────────────────────────
+async function loadVersionInfo() {
+  try {
+    const v = await fetch('/api/version').then(r => r.json());
+    document.getElementById('ver-local').textContent  = v.local  || 'unknown';
+    const remEl = document.getElementById('ver-remote');
+    if (v.remote) {
+      remEl.textContent = v.remote;
+      remEl.style.color = v.remote !== v.local ? 'var(--accent)' : 'var(--muted)';
+      document.getElementById('btn-do-update').style.display = v.remote !== v.local ? '' : 'none';
+    } else {
+      remEl.textContent = 'unavailable';
+    }
+  } catch(e) {}
+}
+
+async function checkForUpdate() {
+  document.getElementById('update-status').textContent = 'Checking…';
+  document.getElementById('ver-remote').textContent = '…';
+  document.getElementById('btn-do-update').style.display = 'none';
+  await loadVersionInfo();
+  const local  = document.getElementById('ver-local').textContent;
+  const remote = document.getElementById('ver-remote').textContent;
+  if (remote === 'unavailable') {
+    document.getElementById('update-status').textContent = 'Could not reach GitHub.';
+  } else if (local === remote) {
+    document.getElementById('update-status').textContent = 'Already up to date.';
+  } else {
+    document.getElementById('update-status').textContent = `Update available: ${remote}`;
+  }
+}
+
+async function doUpdate() {
+  if (!confirm(`Apply update? The server will restart automatically.`)) return;
+  document.getElementById('btn-do-update').disabled = true;
+  document.getElementById('update-status').textContent = 'Starting update… server will restart. Reload this page in about 30 seconds.';
+  try {
+    await fetch('/api/update', { method: 'POST' });
+  } catch(e) {}
+}
+
 // ── Boot ───────────────────────────────────────────────────────────────────
 init();
+loadVersionInfo();
 </script>
 </body>
 </html>

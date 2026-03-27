@@ -584,6 +584,36 @@ def api_state():
     with state_lock:
         return jsonify([s for s in printer_states.values() if s.get('enabled', True)])
 
+_VERSION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'version.txt')
+_REMOTE_VERSION_URL = 'https://raw.githubusercontent.com/rbjones21/BambuHelper-SurfaceRT/main/version.txt'
+
+@app.route('/api/version')
+def api_version():
+    try:
+        with open(_VERSION_FILE) as f:
+            local = f.read().strip()
+    except OSError:
+        local = 'unknown'
+    remote = None
+    try:
+        req = urllib.request.Request(_REMOTE_VERSION_URL, headers={'User-Agent': 'BambuHelper'})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            remote = r.read().decode().strip()
+    except Exception:
+        pass
+    return jsonify({'local': local, 'remote': remote})
+
+@app.route('/api/update', methods=['POST'])
+def api_update():
+    def _do_update():
+        time.sleep(1)
+        try:
+            subprocess.run(['/usr/local/bin/bambu-update', '--force'], check=False)
+        except Exception as exc:
+            log.error('Update failed: %s', exc)
+    threading.Thread(target=_do_update, daemon=True).start()
+    return jsonify({'ok': True, 'message': 'Update started. Server will restart shortly.'})
+
 @app.route('/api/token_expiry')
 def api_token_expiry():
     """Return token expiry info for all cloud-mode printers."""
