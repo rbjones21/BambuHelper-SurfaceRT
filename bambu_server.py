@@ -1085,14 +1085,8 @@ def parse_print_message(state, msg):
         if tray_now is not None:
             if tray_now < 254:
                 new_active = f"{tray_now // 4}-{tray_now % 4}"
-                # During a print job, only trust tray_now if it maps to a job tray
-                # (H2C firmware can transiently report non-job trays during changes)
-                job_slots = state.get('ams_job_slots', [])
-                if not job_slots or new_active in job_slots:
-                    state['ams_active_id'] = new_active
-                    log.info(f"[{state['id']}] AMS tray_now={tray_now} -> ams_active_id={new_active}")
-                else:
-                    log.debug(f"[{state['id']}] AMS tray_now={tray_now} -> {new_active} not in job, ignoring")
+                state['ams_active_id'] = new_active
+                log.info(f"[{state['id']}] AMS tray_now={tray_now} -> ams_active_id={new_active}")
             else:
                 state['ams_active_id'] = None  # 254/255 = no AMS tray active
         # Use persisted active_id so the indicator survives payloads that omit tray_now
@@ -1121,8 +1115,7 @@ def parse_print_message(state, msg):
                     'drying':       is_drying,
                     'dry_remain':   f"{dry_h}:{dry_m:02d}" if is_drying and dry_time > 0 else '',
                     'state':        tray.get('state', 0),
-                    'active':       (active_id is not None and tray_id == active_id) or
-                                    (has_fil and tray.get('state') == 27),
+                    'active':       active_id is not None and tray_id == active_id,
                     'in_job':       False,
                 })
         if trays:
@@ -1137,17 +1130,24 @@ def parse_print_message(state, msg):
     if state.get('ams_trays'):
         aid = state.get('ams_active_id')
         for tray in state['ams_trays']:
-            tray['active'] = (aid is not None and tray['id'] == aid) or \
-                             (bool(tray.get('type')) and tray.get('state') == 27)
+            tray['active'] = aid is not None and tray['id'] == aid
 
     # Mark which trays are part of the current print job using mapping field
     if 'mapping' in p:
+        log.info(f"[{state['id']}] mapping raw: {p['mapping']!r}")
         active_slots = set()
         for m in p['mapping']:
-            if m != 65535 and m != 0:
-                ams_id  = (m >> 8) & 0xFF
-                tray_id = m & 0xFF
-                active_slots.add(f"{ams_id}-{tray_id}")
+            if isinstance(m, dict):
+                # Object format: {"ams_id": 0, "tray_id": 3, ...}
+                ams_id  = m.get('ams_id')
+                tray_id = m.get('tray_id')
+                if ams_id is not None and tray_id is not None:
+                    active_slots.add(f"{ams_id}-{tray_id}")
+            elif isinstance(m, int):
+                if m != 65535 and m != 0:
+                    ams_id  = (m >> 8) & 0xFF
+                    tray_id = m & 0xFF
+                    active_slots.add(f"{ams_id}-{tray_id}")
         state['ams_job_slots'] = list(active_slots)
         if state.get('ams_trays'):
             for tray in state['ams_trays']:
