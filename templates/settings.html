@@ -623,23 +623,6 @@
     </div>
   </div>
 
-  <!-- ── Debug Tools ── -->
-  <div class="card">
-    <div class="card-hdr collapsed" onclick="toggleCard(this)"><h2>Debug Tools</h2><span class="chev">▼</span></div>
-    <div class="card-body hidden">
-      <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Inject fake HMS errors to test the dashboard display. Cleared by reboot or the next real MQTT message.</p>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-        <label style="font-size:12px;color:var(--muted)">Printer:</label>
-        <select id="dbg-printer-sel" class="inp" style="flex:1;min-width:120px;max-width:220px"></select>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="sys-btn" style="color:#ffaa44;border-color:rgba(255,170,68,0.4)" onclick="dbgInjectFilamentOut()">Simulate: Out of Filament</button>
-        <button class="sys-btn" style="color:#ff8888;border-color:rgba(255,100,100,0.4)" onclick="dbgClearErrors()">Clear Fake Errors</button>
-      </div>
-      <div id="dbg-status" style="margin-top:8px;font-size:12px;color:var(--muted)"></div>
-    </div>
-  </div>
-
   <!-- ── About ── -->
   <div class="card">
     <div class="card-hdr collapsed" onclick="toggleCard(this)"><h2>About</h2><span class="chev">▼</span></div>
@@ -719,7 +702,6 @@ async function init() {
     loadPrinterForm(0);
     loadDisplaySettings(config);
     updateStats();
-    populateDebugPrinterSelect();
     setInterval(refreshState, 4000);
   } catch(e) {
     showToast('Could not connect to server', 'error');
@@ -1453,49 +1435,6 @@ async function saveIPConfig() {
     if (data.ok) { showToast('IP settings applied', 'success'); setTimeout(loadNetworkStatus, 2000); }
     else         showToast(data.error || 'Failed to apply settings', 'error');
   } catch(e) { showToast('Failed to apply settings', 'error'); }
-}
-
-// ── Debug Tools ────────────────────────────────────────────────────────────
-function populateDebugPrinterSelect() {
-  const sel = document.getElementById('dbg-printer-sel');
-  if (!sel || !config.printers) return;
-  sel.innerHTML = config.printers
-    .filter(p => p.enabled !== false)
-    .map(p => `<option value="${p.id}">${p.name || p.id}</option>`)
-    .join('');
-}
-
-async function dbgInjectFilamentOut() {
-  const sel = document.getElementById('dbg-printer-sel');
-  const pid = sel ? sel.value : '';
-  if (!pid) return;
-  const fakeErrors = [
-    { code: '07FF-2000-0002-0001', desc: 'External filament ran out — load new filament' }
-  ];
-  try {
-    const r = await fetch(`/api/debug/force_state/${encodeURIComponent(pid)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gcode_state: 'PAUSE', hms_errors: fakeErrors })
-    });
-    const d = await r.json();
-    document.getElementById('dbg-status').textContent = d.ok ? 'Fake error injected — check the dashboard.' : (d.error || 'Failed');
-  } catch(e) { document.getElementById('dbg-status').textContent = 'Request failed.'; }
-}
-
-async function dbgClearErrors() {
-  const sel = document.getElementById('dbg-printer-sel');
-  const pid = sel ? sel.value : '';
-  if (!pid) return;
-  try {
-    const r = await fetch(`/api/debug/force_state/${encodeURIComponent(pid)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gcode_state: 'IDLE', hms_errors: [] })
-    });
-    const d = await r.json();
-    document.getElementById('dbg-status').textContent = d.ok ? 'Cleared.' : (d.error || 'Failed');
-  } catch(e) { document.getElementById('dbg-status').textContent = 'Request failed.'; }
 }
 
 // ── Version / Update ───────────────────────────────────────────────────────
