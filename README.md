@@ -1,4 +1,4 @@
-# BambuHelperRT — v1.4.0
+# BambuHelperRT — v1.5.x
 
 A Bambu Lab printer monitor dashboard running on a **Microsoft Surface RT** with Debian 12.
 Connects to one or two printers simultaneously via Bambu Cloud MQTT and displays live status

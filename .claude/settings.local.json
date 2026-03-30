@@ -47,7 +47,8 @@
       "Bash(scp \"d:/OneDrive - FDS/Documents/Surface RT Linux/BambuHelper-SurfaceRT/templates/dashboard.html\" rjones@10.0.100.208:/tmp/)",
       "Bash(ssh rjones@10.0.100.208 \"sudo cp /tmp/dashboard.html /opt/bambuhelper/templates/dashboard.html && sudo systemctl restart bambuhelper && sleep 2 && systemctl is-active bambuhelper\")",
       "Bash(ssh rjones@10.0.100.208 \"curl -s http://localhost:5000/debug | python3 -c \"\"import json,sys; d=json.load\\(sys.stdin\\); p1=[p for p in d.get\\(''printers'',[]\\) if ''H2D'' in p.get\\(''name'',''''\\)]; p=p1[0] if p1 else {}; print\\(''nozzle_temp:'', p.get\\(''nozzle_temp''\\)\\); print\\(''nozzle_temp_active:'', p.get\\(''nozzle_temp_active''\\)\\); print\\(''nozzle_target_active:'', p.get\\(''nozzle_target_active''\\)\\); print\\(''nozzle_temp_l:'', p.get\\(''nozzle_temp_l''\\)\\); print\\(''nozzle_temp_r:'', p.get\\(''nozzle_temp_r''\\)\\); print\\(''nozzle_target_l:'', p.get\\(''nozzle_target_l''\\)\\); print\\(''nozzle_target_r:'', p.get\\(''nozzle_target_r''\\)\\); print\\(''nozzle_active_side:'', p.get\\(''nozzle_active_side''\\)\\); print\\(''has_dual_nozzle:'', p.get\\(''has_dual_nozzle''\\)\\); print\\(''ams_active_id:'', p.get\\(''ams_active_id''\\)\\)\"\"\")",
-      "Bash(ssh rjones@10.0.100.208 \"curl -sv http://localhost:5000/debug 2>&1 | tail -5\")"
+      "Bash(ssh rjones@10.0.100.208 \"curl -sv http://localhost:5000/debug 2>&1 | tail -5\")",
+      "Bash(wc -l \"d:/OneDrive - FDS/Documents/Surface RT Linux/BambuHelper-ESP32/\"*.py)"
     ]
   }
 }

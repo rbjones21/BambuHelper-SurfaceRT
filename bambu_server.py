@@ -1218,6 +1218,7 @@ def parse_print_message(state, msg):
         # Track print start time
         if p['gcode_state'] == 'RUNNING' and prev_state not in ('RUNNING', 'PAUSE'):
             state['print_start_time'] = int(time.time())
+            state['_finish_recorded'] = False
 
     if 'print_error' in p:
         if p['print_error'] != 0:
@@ -1267,7 +1268,9 @@ def parse_print_message(state, msg):
             state['dismissed_hms'] = []
 
     if p.get('gcode_state') == 'FINISH':
-        record_print_finished(state)
+        if not state.get('_finish_recorded'):
+            record_print_finished(state)
+            state['_finish_recorded'] = True
         state['errors']          = []
         state['hms_errors']      = []
         state['dismissed_hms']   = []
