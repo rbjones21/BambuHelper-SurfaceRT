@@ -527,15 +527,25 @@ def save_print_history(history):
         log.warning(f"Could not save print history: {e}")
 
 def record_print_finished(state):
-    """Append a completed print record to history."""
+    """Append a completed print record to history (with dedup guard)."""
     name = state.get('print_name', '').strip()
     if not name:
         return
+    printer = state.get('name', state['id'])
     history = load_print_history()
+    # Dedup: skip if the last entry for this printer has the same job name
+    # and was recorded within the last 10 minutes (handles restarts/reconnects)
+    now = int(time.time())
+    for entry in reversed(history):
+        if entry.get('printer') == printer and entry.get('job') == name:
+            if now - entry.get('finished', 0) < 600:
+                log.info(f"[{state['id']}] Skipping duplicate history for {name!r} (recorded {now - entry['finished']}s ago)")
+                return
+            break
     history.append({
-        "printer":   state.get('name', state['id']),
+        "printer":   printer,
         "job":       name,
-        "finished":  int(time.time()),
+        "finished":  now,
         "layers":    state.get('layer_total', 0),
         "started":   state.get('print_start_time', None),
     })
