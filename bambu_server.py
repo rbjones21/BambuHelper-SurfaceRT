@@ -1328,11 +1328,13 @@ def make_mqtt_client(printer_cfg):
         try:
             payload = json.loads(msg.payload.decode('utf-8'))
             with state_lock:
+                state = printer_states[printer_id]
+                # Update timestamp on ANY message to prevent false staleness disconnects
+                state['last_update'] = time.time()
                 if 'print' in payload:
-                    parse_print_message(printer_states[printer_id], payload)
+                    parse_print_message(state, payload)
                 # Search for extruder anywhere in the message (root, print.device, etc.)
                 # Keralots uses memmem on raw bytes — it finds extruder regardless of nesting
-                state = printer_states[printer_id]
                 ext = _find_extruder(payload)
                 if ext is not None:
                     _parse_extruder(state, ext)
@@ -1376,8 +1378,8 @@ def mqtt_worker(printer_cfg):
                 with state_lock:
                     last      = printer_states[printer_id]['last_update']
                     connected = printer_states[printer_id]['connected']
-                if connected and last > 0 and (time.time() - last) > 60:
-                    log.warning(f"[{printer_id}] No messages for 60s, reconnecting")
+                if connected and last > 0 and (time.time() - last) > 120:
+                    log.warning(f"[{printer_id}] No messages for 120s, reconnecting")
                     break
         except Exception as e:
             log.error(f"[{printer_id}] Error: {e}")
@@ -1387,11 +1389,17 @@ def mqtt_worker(printer_cfg):
                 client.disconnect()
             except Exception:
                 pass
-            with state_lock:
-                printer_states[printer_id]['connected'] = False
-            broadcast_state()
+            # Only mark offline if we couldn't reconnect quickly
+            # (on_connect will set connected=True when reconnection succeeds)
         log.info(f"[{printer_id}] Retry in {retry_delay}s")
         time.sleep(retry_delay)
+        # Mark offline only after the retry delay — gives reconnect a chance
+        with state_lock:
+            if not printer_states[printer_id]['connected']:
+                pass  # on_disconnect already set it
+            # If still not reconnected after delay, ensure offline state
+            printer_states[printer_id]['connected'] = False
+        broadcast_state()
         retry_delay = min(retry_delay * 2, 60)
 
 # ---------------------------------------------------------------------------

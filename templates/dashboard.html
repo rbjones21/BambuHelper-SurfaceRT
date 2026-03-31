@@ -457,12 +457,15 @@ function ledBar(pct, col) {
 
 // ── State helpers ─────────────────────────────────────────────────────────
 function stCls(s) {
-  if (!s.connected) return 'offline';
+  // Grace period: don't show offline until 8s after disconnect
+  const trueOffline = !s.connected && s._offline_since && (Date.now() - s._offline_since > 8000);
+  if (!s.connected && trueOffline) return 'offline';
   if (s.errors && s.errors.length) return 'error';
   return { RUNNING:'printing', PAUSE:'paused', FINISH:'finished', FAILED:'error' }[s.gcode_state] || 'idle';
 }
 function stLbl(s) {
-  if (!s.connected) return 'Offline';
+  const trueOffline = !s.connected && s._offline_since && (Date.now() - s._offline_since > 8000);
+  if (!s.connected && trueOffline) return 'Offline';
   return { RUNNING:'Printing', PAUSE:'Paused', FINISH:'Finished', FAILED:'Failed' }[s.gcode_state] || 'Idle';
 }
 function fmt(min) {
@@ -513,8 +516,8 @@ function panel(s, idx) {
   const isActive   = isPrinting || isPaused;
   const wikiSeries = ((s.nozzle_type||'').toUpperCase().startsWith('HH') || (s.nozzle_type||'').toUpperCase().startsWith('HS')) ? 'h2' : 'x1';
 
-  // Offline overlay
-  const offline = !s.connected ? `
+  // Offline overlay — only show after a brief grace period to avoid flicker on reconnects
+  const offline = !s.connected && s._offline_since && (Date.now() - s._offline_since > 8000) ? `
     <div class="offline">
       <div class="on">${s.name}</div>
       <div class="om">Reconnecting</div>
@@ -939,11 +942,30 @@ async function clearErrors(printerId) {
   });
 }
 
+// ── Offline grace period tracking ─────────────────────────────────────────
+const _offlineTimestamps = {};  // printer_id -> first-seen-offline timestamp
+
 // ── Main render — called on every state update ────────────────────────────
 function render(states) {
+  // Track offline timestamps for grace period
+  const now = Date.now();
+  states.forEach(s => {
+    if (!s.connected) {
+      if (!_offlineTimestamps[s.id]) _offlineTimestamps[s.id] = now;
+      s._offline_since = _offlineTimestamps[s.id];
+    } else {
+      delete _offlineTimestamps[s.id];
+      s._offline_since = null;
+    }
+  });
+
   const el        = document.getElementById('printers');
   const idleClock = document.getElementById('idle-clock');
-  const anyActive = states.some(s => s.connected && (s.gcode_state === 'RUNNING' || s.gcode_state === 'PAUSE'));
+  // During grace period, treat briefly-disconnected printers as still active
+  const anyActive = states.some(s => {
+    const inGrace = !s.connected && s._offline_since && (now - s._offline_since <= 8000);
+    return (s.connected || inGrace) && (s.gcode_state === 'RUNNING' || s.gcode_state === 'PAUSE');
+  });
 
   // Show idle clock when no printer is actively printing
   if (anyActive) {
