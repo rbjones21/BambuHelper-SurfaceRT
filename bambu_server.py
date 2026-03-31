@@ -252,6 +252,9 @@ _HMS_FALLBACK = {
     "0300-9000-0001-0001": "Chamber heating failed — heater may not be blowing hot air",
     "0300-9000-0001-0002": "Chamber heating failed — may not be enclosed or ambient too cold",
     "0300-9400-0003-0001": "Chamber cooling too slow — open cover to assist cooling",
+    # Vibration compensation / input shaper
+    "0300-9600-0003-0001": "Vibration compensation data abnormal — recalibrate or ignore",
+    "0300-9600-0003-0002": "Vibration compensation data incomplete — run calibration",
     # System / AP
     "0500-0300-0001-0001": "MC module malfunctioning — restart device",
     "0500-0300-0001-0002": "Toolhead malfunctioning — restart device",
