@@ -1441,7 +1441,13 @@ def display_monitor():
             else:
                 if all_done_since is None:
                     all_done_since = time.time()
-                elif time.time() - all_done_since >= timeout_min * 60:
+                idle_secs = time.time() - all_done_since
+                if show_clock:
+                    # Show idle clock for timeout period, then screen off
+                    if idle_secs >= timeout_min * 60:
+                        screen_off()
+                else:
+                    # No clock — turn screen off immediately
                     screen_off()
         except Exception as e:
             log.warning(f"Display monitor error: {e}")
