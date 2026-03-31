@@ -312,6 +312,10 @@
     <span style="color:#ff9944;font-size:13px;flex:1" id="token-warn-msg"></span>
     <a href="/settings" style="background:#ff9944;color:#000;font-size:12px;font-weight:700;padding:5px 12px;border-radius:5px;text-decoration:none;white-space:nowrap">Update Token →</a>
   </div>
+  <a href="/settings" id="update-avail-bar" style="display:none;background:#003d66;border-bottom:1px solid #00a0ff;padding:8px 16px;align-items:center;gap:12px;text-decoration:none;cursor:pointer">
+    <span style="color:#00c8ff;font-size:13px;flex:1" id="update-avail-msg"></span>
+    <span style="background:#00c8ff;color:#000;font-size:12px;font-weight:700;padding:5px 12px;border-radius:5px;white-space:nowrap">Update Now →</span>
+  </a>
   <div id="printers"></div>
   <div id="idle-clock">
     <div class="idle-time" id="idle-time-display">--:--</div>
@@ -1038,6 +1042,23 @@ async function checkTokenExpiry() {
   } catch(e) {}
 }
 checkTokenExpiry();
+
+// ── Update available notification ──────────────────────────────────────────────────
+async function checkForUpdate() {
+  try {
+    const v   = await fetch('/api/version').then(r => r.json());
+    const bar = document.getElementById('update-avail-bar');
+    const msg = document.getElementById('update-avail-msg');
+    if (v.remote && v.local && v.remote !== v.local) {
+      msg.textContent = `\u2B06 Update available: v${v.remote} (current: v${v.local})`;
+      bar.style.display = 'flex';
+    } else {
+      bar.style.display = 'none';
+    }
+  } catch(e) {}
+}
+checkForUpdate();
+setInterval(checkForUpdate, 6 * 3600 * 1000); // re-check every 6 hours
 
 // ── WebSocket + initial state load ───────────────────────────────────────
 const socket = io();
