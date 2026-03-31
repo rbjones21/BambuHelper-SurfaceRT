@@ -205,7 +205,9 @@
   .batt-bar::after      { content: ''; position: absolute; right: -4px; top: 50%; transform: translateY(-50%); width: 3px; height: 5px; background: currentColor; border-radius: 0 1px 1px 0; }
   .batt-fill            { height: 100%; border-radius: 1px; background: currentColor; transition: width 0.5s; }
   .batt-status.charging { color: #00ff88; }
+  .batt-status.full      { color: #00ff88; }
   .batt-status.low      { color: #ff3344; }
+  .batt-bolt            { font-size: 13px; line-height: 1; }
 
   /* ── Single printer mode — expand everything ── */
   #printers.single .pnl-name    { font-size: 32px; }
@@ -293,6 +295,7 @@
     <div class="logo">BambuHelper<em>RT</em></div>
     <div class="hdr-r">
       <div class="batt-status" id="batt-status" style="display:none">
+        <span class="batt-bolt" id="batt-bolt" style="display:none">&#9889;</span>
         <div class="batt-bar"><div class="batt-fill" id="batt-fill" style="width:100%"></div></div>
         <span id="batt-pct">--%</span>
       </div>
@@ -903,9 +906,12 @@ async function updateBattery() {
     el.style.display = '';
     const pct      = data.capacity;
     const charging = data.status === 'Charging';
-    const low      = pct < 20 && !charging;
-    el.className   = `batt-status${charging ? ' charging' : low ? ' low' : ''}`;
-    document.getElementById('batt-pct').textContent  = `${pct}%`;
+    const full     = data.status === 'Full' || (data.status === 'Not charging' && pct >= 95);
+    const plugged  = charging || full;
+    const low      = pct < 20 && !plugged;
+    el.className   = `batt-status${charging ? ' charging' : full ? ' full' : low ? ' low' : ''}`;
+    document.getElementById('batt-bolt').style.display = plugged ? '' : 'none';
+    document.getElementById('batt-pct').textContent  = full ? 'Full' : `${pct}%`;
     document.getElementById('batt-fill').style.width = `${pct}%`;
   } catch(e) {}
 }
