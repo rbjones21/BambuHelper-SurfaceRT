@@ -314,7 +314,7 @@ def lookup_hms_description(code: str) -> str:
     """Return a human-readable description for an HMS code.
 
     Strategy:
-    1. Check in-memory cache (hit → instant return).
+    1. Check in-memory cache (hit → instant return, but only if non-empty).
     2. Check local fallback table (covers the most common codes, including
        AMS slot generalisation).
     3. Query Bambu's cloud HMS API.  Result is cached regardless.
@@ -324,10 +324,11 @@ def lookup_hms_description(code: str) -> str:
     generic = _normalise_hms_code(_ams_generic_key(norm))
 
     with _hms_desc_lock:
-        if norm in _hms_desc_cache:
-            return _hms_desc_cache[norm]
+        cached = _hms_desc_cache.get(norm)
+        if cached:  # only use cache if it has a real description
+            return cached
 
-    # Local fallback
+    # Local fallback — always checked (not skipped by empty cache entries)
     desc = _HMS_FALLBACK.get(norm) or _HMS_FALLBACK.get(generic) or ''
 
     if not desc:
@@ -353,8 +354,10 @@ def lookup_hms_description(code: str) -> str:
         except Exception as e:
             log.debug(f"HMS cloud lookup failed for {norm}: {e}")
 
-    with _hms_desc_lock:
-        _hms_desc_cache[norm] = desc
+    # Only cache non-empty descriptions (empty = retry next time, allows fallback table updates)
+    if desc:
+        with _hms_desc_lock:
+            _hms_desc_cache[norm] = desc
     return desc
 
 def _enrich_hms_codes(codes: list) -> list:
