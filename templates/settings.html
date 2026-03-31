@@ -1472,10 +1472,18 @@ async function checkForUpdate() {
 async function doUpdate() {
   if (!confirm(`Apply update? The server will restart automatically.`)) return;
   document.getElementById('btn-do-update').disabled = true;
-  document.getElementById('update-status').textContent = 'Starting update… server will restart. Reload this page in about 30 seconds.';
+  document.getElementById('update-status').innerHTML =
+    '<span style="color:var(--accent)">&#9881; Updating… server will restart and this page will reload automatically.</span>';
   try {
     await fetch('/api/update', { method: 'POST' });
   } catch(e) {}
+  // Poll until the server comes back, then reload
+  const poll = setInterval(async () => {
+    try {
+      const r = await fetch('/api/version', {cache:'no-store'});
+      if (r.ok) { clearInterval(poll); location.reload(true); }
+    } catch(e) {}
+  }, 3000);
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────

@@ -636,6 +636,8 @@ def api_update():
             subprocess.run(['/usr/local/bin/bambu-update', '--force'], check=False)
         except Exception as exc:
             log.error('Update failed: %s', exc)
+    # Notify all connected clients (dashboard + settings) before updating
+    socketio.emit('system_updating', {'message': 'Updating BambuHelper — please wait…'})
     threading.Thread(target=_do_update, daemon=True).start()
     return jsonify({'ok': True, 'message': 'Update started. Server will restart shortly.'})
 
