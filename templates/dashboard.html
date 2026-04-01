@@ -6,6 +6,16 @@
 <title>BambuHelperRT</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script>
+// Apply saved theme immediately to prevent flash of default theme
+(function(){
+  var c = {{ theme_colors | safe }};
+  if (!c || !c.bg) return;
+  var s = document.documentElement.style;
+  s.setProperty('--bg', c.bg);
+  if (c.track) s.setProperty('--bdr', c.track);
+})();
+</script>
 <style>
   /* ── Base variables ── */
   :root {

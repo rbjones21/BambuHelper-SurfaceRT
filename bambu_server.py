@@ -606,11 +606,13 @@ def access_control():
 # ---------------------------------------------------------------------------
 @app.route('/')
 def index():
-    return render_template('dashboard.html')
+    colors = (CONFIG.get('display') or {}).get('colors') or {}
+    return render_template('dashboard.html', theme_colors=json.dumps(colors))
 
 @app.route('/settings')
 def settings():
-    return render_template('settings.html')
+    colors = (CONFIG.get('display') or {}).get('colors') or {}
+    return render_template('settings.html', theme_colors=json.dumps(colors))
 
 @app.route('/api/state')
 def api_state():
