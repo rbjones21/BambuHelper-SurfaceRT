@@ -1,4 +1,4 @@
-# BambuHelperRT — v1.5.x
+# BambuHelperRT — v1.6.0
 
 A Bambu Lab printer monitor dashboard running on a **Microsoft Surface RT** with Debian 12.
 Connects to one or two printers simultaneously via Bambu Cloud MQTT and displays live status
@@ -65,6 +65,23 @@ Bambu Cloud MQTT → bambu_server.py (Flask + SocketIO :5000) → WebSocket → 
 - Clock (12h or 24h)
 - Refresh button
 - Settings button
+- **Update notification bar** — blue banner appears when a new version is available on GitHub; links directly to the About section in Settings for one-tap update
+- **Token expiry banner** — orange banner when any cloud printer token is within 30 days of expiry
+
+### Battery / Power
+- **Battery indicator** — shows current battery percentage and charging state
+- **Charging bolt icon** — ⚡ shown when plugged in; "Full" text displayed when charged to 95%+
+
+### HMS Error Display
+- **HMS error strip** — active HMS codes shown below each printer panel with human-readable descriptions
+- **Tap to view** — tap any HMS entry to see the error code and QR link to the Bambu Lab wiki troubleshooting page
+- **Dismiss button** — ✕ button to dismiss stale HMS codes; dismissed codes persist across MQTT heartbeats until the printer stops reporting them
+- **Local fallback table** — 60+ common HMS codes resolved instantly without cloud API lookup
+- **Cloud API enrichment** — unknown codes queried from Bambu's cloud HMS API and cached
+
+### Offline Detection
+- **Grace period** — 8-second grace period before showing "Offline" to prevent false flashes during MQTT reconnects
+- **120-second staleness timeout** — printers marked offline only after 2 minutes without any MQTT message
 
 ---
 
@@ -123,6 +140,15 @@ All cards start collapsed — tap a card header to expand it.
 
 ### About
 - Project description and links
+- **Version info** — shows installed version and latest available version from GitHub
+- **Check for Updates** — compares local version.txt against GitHub
+- **Update Now** — one-tap OTA update with full-screen "Updating" overlay; auto-reloads dashboard after server restarts
+- **Deep-linked from dashboard** — "Update Now" banner on the dashboard links directly to `/settings#about`, auto-expanding and scrolling to the About card
+
+### Theme
+- **Instant theme application** — saved theme colors are injected server-side into the HTML `<head>` before the browser paints, eliminating the flash of default theme on page load
+- **6 theme presets** — Default, Bambu, Mono Green, Neon, Warm, Ocean
+- Theme applies consistently across dashboard and settings pages
 
 ---
 
@@ -332,6 +358,36 @@ The web server binds to `0.0.0.0` (all interfaces) to support optional LAN acces
 ---
 
 ## Changelog
+
+### v1.6.0 — April 2026
+- **Update notification bar** — blue banner on the dashboard when a new version is available; links directly to Settings → About for one-tap update
+- **Full-screen update overlay** — "Updating..." spinner shown during OTA update; dashboard auto-reloads after server restart
+- **HMS error descriptions** — local fallback table with 60+ common codes; cloud API enrichment with caching; HMS codes shown with human-readable descriptions on the dashboard
+- **HMS cache fix** — empty cloud API results no longer cached permanently, allowing fallback table entries to work
+- **HMS dismiss fix** — dismissed codes persist across MQTT heartbeats; new codes no longer reset the entire dismissed list
+- **Nozzle clumping code** — added `0C00-0300-0002-001C` (AI detected nozzle clumping) to fallback table
+- **Front door sensor codes** — added `0300-9600-0003-0001/0002` (front door open) to fallback table
+- **Battery/charging indicator** — ⚡ bolt icon when charging; "Full" text when plugged in at 95%+
+- **False offline fix** — `last_update` now set on all MQTT messages (not just print); staleness timeout increased to 120s; 8-second dashboard grace period prevents false "Offline" flashes
+- **Display timeout fix** — `show_clock` setting now respected: unchecked = screen off immediately after prints finish; checked = idle clock shown for timeout period then screen off
+- **Duplicate print history fix** — in-memory guard + 10-minute dedup window prevents repeated FINISH messages from creating duplicate history entries
+- **Theme flash eliminated** — saved theme colors injected server-side into HTML `<head>` before paint; no more flash of default dark-blue theme on page load
+- **Settings deep-link** — `/settings#about` auto-expands and scrolls to the About card
+
+### v1.5.x — March–April 2026 (incremental)
+- v1.5.1: README version bump + finish recording guard
+- v1.5.2: Print history deduplication (10-minute window)
+- v1.5.3: Display timeout respects show_clock setting
+- v1.5.4: Full-screen update overlay + auto-reload
+- v1.5.5: False offline flash fix (3-layer approach)
+- v1.5.6: Battery charging indicator (bolt + Full text)
+- v1.5.7: Update available notification bar on dashboard
+- v1.5.8: HMS fallback table for 0300-9600 door sensor codes
+- v1.5.9: HMS cache bug fix (empty results no longer cached)
+- v1.5.10: HMS description correction (door sensor)
+- v1.5.11: Nozzle clumping fallback + settings deep-link
+- v1.5.12: HMS dismiss persistence fix
+- v1.5.13: Theme flash elimination (server-side color injection)
 
 ### v1.4.0 — March 2026
 - **PIN protection** — numeric PIN with on-screen numpad (no physical keyboard required); gates LAN access and optionally the local settings page
