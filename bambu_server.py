@@ -1274,11 +1274,9 @@ def parse_print_message(state, msg):
                 formatted.append(f"{a1:04X}-{a2:04X}-{c1:04X}-{c2:04X}")
             log.info(f"[{state['id']}] HMS codes received: {formatted}")
             dismissed = state.get('dismissed_hms', [])
-            # If any code is genuinely new (not previously dismissed), clear the dismissed list
-            new_codes = [c for c in formatted if c not in dismissed]
-            if new_codes:
-                state['dismissed_hms'] = []
-                dismissed = []
+            # Remove stale dismissals (codes no longer reported by the printer)
+            dismissed = [d for d in dismissed if d in formatted]
+            state['dismissed_hms'] = dismissed
             active = [c for c in formatted if c not in dismissed]
             # Enrich with descriptions (uses cache — no repeated network calls)
             state['hms_errors'] = _enrich_hms_codes(active)
