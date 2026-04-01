@@ -271,6 +271,7 @@ _HMS_FALLBACK = {
     "0500-0600-0002-0032": "Nozzle camera not connected — check cable connections",
     "0500-0600-0002-0034": "Live View camera not connected — check cable connections",
     "0500-0600-0002-0044": "Live View camera not connected — check cable connections",
+    "0500-0600-0002-00A4": "Live View camera not connected — check cable connections",
     # Build plate / print file
     "0500-8051-0001-0001": "Build plate type does not match the Gcode file — adjust slicer settings or use correct plate",
     "0500-8051-0003-3C5E": "Build plate type does not match the Gcode file — adjust slicer settings or use correct plate",
