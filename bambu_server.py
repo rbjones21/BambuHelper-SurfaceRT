@@ -1422,15 +1422,39 @@ def periodic_broadcast():
 # Display timeout monitor
 # ---------------------------------------------------------------------------
 def display_monitor():
-    DISPLAY_ENV = {'DISPLAY': ':0', 'XAUTHORITY': os.path.expanduser('~/.Xauthority')}
+    DISPLAY_ENV = {**os.environ, 'DISPLAY': ':0', 'XAUTHORITY': os.path.expanduser('~/.Xauthority')}
+    BACKLIGHT_PATH = '/sys/class/backlight/backlight/brightness'
+    is_off = False
+
+    def _get_brightness():
+        display = CONFIG.get('display', {})
+        return max(10, min(254, int(display.get('brightness', 128))))
 
     def screen_on():
+        nonlocal is_off
         subprocess.run(['xset', '-display', ':0', 'dpms', 'force', 'on'],
                        env=DISPLAY_ENV, capture_output=True)
+        try:
+            with open(BACKLIGHT_PATH, 'w') as f:
+                f.write(str(_get_brightness()))
+        except Exception:
+            pass
+        if is_off:
+            log.info("Display ON")
+            is_off = False
 
     def screen_off():
+        nonlocal is_off
         subprocess.run(['xset', '-display', ':0', 'dpms', 'force', 'off'],
                        env=DISPLAY_ENV, capture_output=True)
+        try:
+            with open(BACKLIGHT_PATH, 'w') as f:
+                f.write('0')
+        except Exception:
+            pass
+        if not is_off:
+            log.info("Display OFF (timeout)")
+            is_off = True
 
     subprocess.run(['xset', '-display', ':0', '+dpms'], env=DISPLAY_ENV, capture_output=True)
     screen_on()
