@@ -276,6 +276,7 @@ _HMS_FALLBACK = {
     "0500-8051-0003-3C5E": "Build plate type does not match the Gcode file — adjust slicer settings or use correct plate",
     # Lidar / AI
     "0C00-0100-0001-0004": "Micro Lidar lens dirty",
+    "0C00-0300-0002-001C": "AI detected nozzle clumping — check nozzle condition",
     "0C00-0300-0003-0006": "Purged filament piled up in waste chute",
     "0C00-0300-0003-0008": "Possible spaghetti defects detected",
     "0C00-0300-0002-000C": "Build plate marker not detected",

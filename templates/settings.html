@@ -624,7 +624,7 @@
   </div>
 
   <!-- ── About ── -->
-  <div class="card">
+  <div class="card" id="about">
     <div class="card-hdr collapsed" onclick="toggleCard(this)"><h2>About</h2><span class="chev">▼</span></div>
     <div class="card-body hidden">
       <p style="font-size:13px;color:var(--muted);line-height:1.6">
@@ -724,6 +724,16 @@ function toggleCard(hdr) {
   if (!hdr.classList.contains('collapsed')) {
     if (title === 'Weather')       loadWeatherSettings();
     if (title === 'Print History') loadPrintHistory();
+  }
+}
+
+// Auto-expand card and scroll when navigating via hash (e.g. /settings#about)
+if (location.hash) {
+  const el = document.querySelector(location.hash);
+  if (el) {
+    const hdr = el.querySelector('.card-hdr.collapsed');
+    if (hdr) toggleCard(hdr);
+    el.scrollIntoView({behavior:'smooth'});
   }
 }
 
