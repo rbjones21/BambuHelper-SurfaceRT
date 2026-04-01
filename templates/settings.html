@@ -727,13 +727,14 @@ function toggleCard(hdr) {
   }
 }
 
-// Auto-expand card and scroll when navigating via hash (e.g. /settings#about)
-if (location.hash) {
-  const el = document.querySelector(location.hash);
-  if (el) {
-    const hdr = el.querySelector('.card-hdr.collapsed');
-    if (hdr) toggleCard(hdr);
-    el.scrollIntoView({behavior:'smooth'});
+function openHashCard() {
+  if (location.hash) {
+    const el = document.querySelector(location.hash);
+    if (el) {
+      const hdr = el.querySelector('.card-hdr.collapsed');
+      if (hdr) toggleCard(hdr);
+      setTimeout(() => el.scrollIntoView({behavior:'smooth'}), 100);
+    }
   }
 }
 
@@ -1499,6 +1500,7 @@ async function doUpdate() {
 // ── Boot ───────────────────────────────────────────────────────────────────
 init();
 loadVersionInfo();
+openHashCard();
 </script>
 </body>
 </html>
