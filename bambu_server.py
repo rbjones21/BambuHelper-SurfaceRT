@@ -211,6 +211,9 @@ _HMS_FALLBACK = {
     "0700-2000-0002-0004": "AMS filament may be broken in toolhead",
     "0700-2000-0002-0005": "AMS filament ran out — purge abnormal",
     "0700-2000-0002-0006": "AMS switch failed — filament not detected after switch",
+    "0700-2300-0002-0001": "AMS slot not loaded — insert filament into AMS slot",
+    "0700-2300-0002-0002": "AMS slot empty or filament missing",
+    "0700-2300-0002-0003": "AMS filament may be tangled or stuck in slot",
     "0700-7000-0002-0007": "AMS filament ran out — insert new filament and retry",
     "0700-7000-0002-0001": "Failed to pull filament from extruder — check for clog",
     "0700-7000-0002-0002": "Failed to feed filament into toolhead — check if stuck",
@@ -924,6 +927,8 @@ BAMBU_ERRORS = {
     0x05000015: "Extruder motor abnormal",
     0x05000016: "Print head door open",
     0x05008051: "Build plate type does not match Gcode — adjust slicer settings or use correct plate",
+    0x07008011: "AMS filament ran out — insert new filament into the same AMS slot",
+    0x07008012: "AMS filament ran out — insert new filament",
     0x0C00000F: "AMS filament mismatch",
     0x0C000010: "AMS communication error",
     0x0C000011: "AMS slot empty",
@@ -1284,8 +1289,9 @@ def parse_print_message(state, msg):
             # Enrich with descriptions (uses cache — no repeated network calls)
             state['hms_errors'] = _enrich_hms_codes(active)
         else:
-            state['hms_errors']    = []
-            state['dismissed_hms'] = []
+            # Empty HMS list from printer — clear errors but keep dismissed codes
+            # so they stay suppressed if the printer re-reports them moments later
+            state['hms_errors'] = []
 
     if p.get('gcode_state') == 'FINISH':
         if not state.get('_finish_recorded'):
@@ -1293,10 +1299,9 @@ def parse_print_message(state, msg):
             state['_finish_recorded'] = True
         state['errors']          = []
         state['hms_errors']      = []
-        state['dismissed_hms']   = []
+        # Keep dismissed_hms intact — user-dismissed codes (like camera errors)
+        # should stay suppressed across print cycles rather than reappearing
         state['print_start_time'] = None
-        _dismissed_hms_store.pop(state['id'], None)
-        save_dismissed_hms(_dismissed_hms_store)
     state['last_update'] = time.time()
 
 # ---------------------------------------------------------------------------
