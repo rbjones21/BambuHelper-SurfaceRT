@@ -907,7 +907,7 @@ def api_system_terminal():
     try:
         subprocess.Popen(
             ['xterm', '-fs', '14', '-bg', 'black', '-fg', 'green'],
-            env={'DISPLAY': ':0', 'XAUTHORITY': os.path.expanduser('~/.Xauthority')}
+            env={'DISPLAY': ':0', 'XAUTHORITY': _XAUTHORITY}
         )
         return jsonify({"ok": True})
     except Exception as e:
@@ -1430,7 +1430,20 @@ def periodic_broadcast():
 # ---------------------------------------------------------------------------
 # Display wake helper — callable from any thread (e.g. MQTT handler)
 # ---------------------------------------------------------------------------
-_DISPLAY_ENV    = {**os.environ, 'DISPLAY': ':0', 'XAUTHORITY': os.path.expanduser('~/.Xauthority')}
+def _find_xauthority():
+    """Find the correct XAUTHORITY path for the running X session."""
+    # LightDM stores it here when running as root
+    lightdm = '/var/run/lightdm/root/:0'
+    if os.path.exists(lightdm):
+        return lightdm
+    # Fallback to home dir
+    home = os.path.expanduser('~/.Xauthority')
+    if os.path.exists(home):
+        return home
+    return home  # best guess
+
+_XAUTHORITY     = _find_xauthority()
+_DISPLAY_ENV    = {**os.environ, 'DISPLAY': ':0', 'XAUTHORITY': _XAUTHORITY}
 _BACKLIGHT_PATH = '/sys/class/backlight/backlight/brightness'
 _screen_is_off  = False
 
@@ -1460,6 +1473,7 @@ def wake_screen(reason=None):
 # ---------------------------------------------------------------------------
 def display_monitor():
     global _screen_is_off
+    log.info(f"Display monitor started (XAUTHORITY={_XAUTHORITY})")
 
     def screen_off():
         global _screen_is_off
