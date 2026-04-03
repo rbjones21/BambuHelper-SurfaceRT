@@ -106,6 +106,18 @@ def pin_protect_local():
     # Default True: PIN required even from kiosk/local browser
     return bool(CONFIG.get('pin_protect_local', True))
 
+def _is_pin_authenticated():
+    """Check if the current session has passed PIN auth."""
+    pin = settings_pin()
+    if not pin:
+        return True  # no PIN configured
+    return session.get('pin_authenticated', False)
+
+# PIN brute-force rate limiting: {ip: [timestamp, ...]}
+_pin_attempts = {}
+_PIN_RATE_WINDOW = 60   # seconds
+_PIN_MAX_ATTEMPTS = 5
+
 def pin_authenticated():
     return session.get('pin_authenticated') is True
 
@@ -482,6 +494,21 @@ for _pid, _codes in _dismissed_hms_store.items():
 _weather_cache = {"data": None, "fetched_at": 0}
 _WEATHER_TTL   = 1800  # 30 minutes
 
+# WMO weather code → (description, icon emoji) for Open-Meteo daily forecast
+_WMO_CODES = {
+    0: ("Clear sky", "☀️"), 1: ("Mainly clear", "🌤"), 2: ("Partly cloudy", "⛅"),
+    3: ("Overcast", "☁️"), 45: ("Fog", "🌫"), 48: ("Rime fog", "🌫"),
+    51: ("Light drizzle", "🌦"), 53: ("Drizzle", "🌦"), 55: ("Dense drizzle", "🌧"),
+    56: ("Freezing drizzle", "🌧"), 57: ("Dense freezing drizzle", "🌧"),
+    61: ("Slight rain", "🌦"), 63: ("Moderate rain", "🌧"), 65: ("Heavy rain", "🌧"),
+    66: ("Freezing rain", "🧊"), 67: ("Heavy freezing rain", "🧊"),
+    71: ("Slight snow", "🌨"), 73: ("Moderate snow", "🌨"), 75: ("Heavy snow", "❄️"),
+    77: ("Snow grains", "🌨"), 80: ("Slight showers", "🌦"), 81: ("Moderate showers", "🌧"),
+    82: ("Violent showers", "⛈"), 85: ("Slight snow showers", "🌨"),
+    86: ("Heavy snow showers", "❄️"), 95: ("Thunderstorm", "⛈"),
+    96: ("Thunderstorm w/ hail", "⛈"), 99: ("Thunderstorm w/ heavy hail", "⛈"),
+}
+
 def fetch_weather():
     """Fetch weather from wttr.in for the configured location. Returns dict or None."""
     location = CONFIG.get('weather_location', '').strip()
@@ -495,7 +522,7 @@ def fetch_weather():
         use_f = CONFIG.get('weather_unit', 'F').upper() == 'F'
         cur   = data['current_condition'][0]
         today = data['weather'][0]
-        return {
+        result = {
             "temp":      cur['temp_F'] if use_f else cur['temp_C'],
             "feels":     cur['FeelsLikeF'] if use_f else cur['FeelsLikeC'],
             "high":      today['maxtempF'] if use_f else today['maxtempC'],
@@ -505,9 +532,55 @@ def fetch_weather():
             "unit":      'F' if use_f else 'C',
             "location":  location,
         }
+        # Extract coordinates for forecast lookup
+        try:
+            area = data['nearest_area'][0]
+            result['_lat'] = area['latitude']
+            result['_lon'] = area['longitude']
+        except (KeyError, IndexError):
+            pass
+        # Fetch 5-day forecast from Open-Meteo (free, no API key)
+        if '_lat' in result:
+            try:
+                result['forecast'] = _fetch_forecast(
+                    result['_lat'], result['_lon'], use_f)
+            except Exception as e:
+                log.debug(f"Forecast fetch failed: {e}")
+        return result
     except Exception as e:
         log.warning(f"Weather fetch failed: {e}")
         return None
+
+def _fetch_forecast(lat, lon, use_f):
+    """Fetch 5-day daily forecast from Open-Meteo. Returns list of day dicts."""
+    temp_unit = 'fahrenheit' if use_f else 'celsius'
+    url = (f"https://api.open-meteo.com/v1/forecast?"
+           f"latitude={lat}&longitude={lon}"
+           f"&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"
+           f"&temperature_unit={temp_unit}&timezone=auto&forecast_days=5")
+    req = urllib.request.Request(url, headers={"User-Agent": "BambuHelperRT/1.4"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        data = json.loads(resp.read())
+    daily = data.get('daily', {})
+    dates = daily.get('time', [])
+    codes = daily.get('weather_code', [])
+    highs = daily.get('temperature_2m_max', [])
+    lows  = daily.get('temperature_2m_min', [])
+    precip = daily.get('precipitation_probability_max', [])
+    forecast = []
+    for i, d in enumerate(dates):
+        wmo  = codes[i] if i < len(codes) else 0
+        desc, icon = _WMO_CODES.get(wmo, (f"Code {wmo}", "🌡"))
+        forecast.append({
+            "date": d,
+            "high": round(highs[i]) if i < len(highs) else None,
+            "low":  round(lows[i])  if i < len(lows)  else None,
+            "code": wmo,
+            "desc": desc,
+            "icon": icon,
+            "precip": precip[i] if i < len(precip) else None,
+        })
+    return forecast
 
 def get_weather():
     """Return cached weather, refreshing if stale."""
@@ -673,7 +746,9 @@ def api_token_expiry():
 
 @app.route('/api/weather')
 def api_weather():
-    return jsonify(get_weather() or {})
+    data = get_weather() or {}
+    # Strip internal coordinate fields
+    return jsonify({k: v for k, v in data.items() if not k.startswith('_')})
 
 @app.route('/api/print_history')
 def api_print_history():
@@ -687,7 +762,13 @@ def api_print_history_clear():
 @app.route('/api/system/weather_settings', methods=['POST'])
 def api_weather_settings():
     data = request.get_json() or {}
-    CONFIG['weather_location'] = data.get('location', '').strip()
+    location = data.get('location', '').strip()
+    # Validate location: max 100 chars, no control chars or URL-like schemes
+    if len(location) > 100 or any(ord(c) < 32 for c in location):
+        return jsonify({"ok": False, "error": "Invalid location"})
+    if re.match(r'^https?://', location, re.I):
+        return jsonify({"ok": False, "error": "Location must be a city name, not a URL"})
+    CONFIG['weather_location'] = location
     CONFIG['weather_unit']     = 'F' if data.get('unit', 'F').upper() == 'F' else 'C'
     save_config_to_disk(CONFIG)
     # Invalidate cache so next fetch uses new settings
@@ -695,9 +776,22 @@ def api_weather_settings():
     _weather_cache['data']       = None
     return jsonify({"ok": True})
 
+_SENSITIVE_CONFIG_KEYS = {'secret_key', 'settings_pin'}
+_SENSITIVE_PRINTER_KEYS = {'bambu_token', 'access_code'}
+
 @app.route('/api/config')
 def api_config():
-    return jsonify(CONFIG)
+    if _is_pin_authenticated():
+        return jsonify(CONFIG)
+    # Redact sensitive fields for unauthenticated requests
+    safe = {k: v for k, v in CONFIG.items() if k not in _SENSITIVE_CONFIG_KEYS}
+    if 'printers' in safe:
+        safe['printers'] = [
+            {k: ('***' if k in _SENSITIVE_PRINTER_KEYS and v else v)
+             for k, v in p.items()}
+            for p in safe['printers']
+        ]
+    return jsonify(safe)
 
 @app.route('/api/config/save', methods=['POST'])
 def api_config_save():
@@ -1587,6 +1681,9 @@ def api_network_connect():
         password = data.get('password', '').strip()
         if not ssid:
             return jsonify({"ok": False, "error": "SSID required"})
+        # Validate SSID: max 32 chars, no null bytes or control chars
+        if len(ssid) > 32 or any(ord(c) < 32 for c in ssid) or '\x00' in ssid:
+            return jsonify({"ok": False, "error": "Invalid SSID"})
 
         # Get current SSID for fallback
         current = subprocess.run(
@@ -1824,11 +1921,21 @@ def api_bambu_login():
 # ---------------------------------------------------------------------------
 @app.route('/api/auth/pin', methods=['POST'])
 def api_auth_pin():
+    ip = request.remote_addr
+    now = time.time()
+    # Rate limiting
+    attempts = _pin_attempts.get(ip, [])
+    attempts = [t for t in attempts if now - t < _PIN_RATE_WINDOW]
+    if len(attempts) >= _PIN_MAX_ATTEMPTS:
+        return jsonify({"ok": False, "error": "Too many attempts — try again later"}), 429
     data = request.get_json() or {}
     if str(data.get('pin', '')) == settings_pin():
+        _pin_attempts.pop(ip, None)
         session.permanent = True
         session['pin_authenticated'] = True
         return jsonify({"ok": True})
+    attempts.append(now)
+    _pin_attempts[ip] = attempts
     return jsonify({"ok": False, "error": "Incorrect PIN"})
 
 @app.route('/api/auth/logout', methods=['POST'])
@@ -1978,6 +2085,9 @@ def api_system_timezone_set():
         tz   = data.get('timezone', '').strip()
         if not tz:
             return jsonify({"ok": False, "error": "Timezone required"})
+        # Validate timezone format: only allow alphanumeric, '/', '-', '_'
+        if not re.match(r'^[A-Za-z0-9/_+-]+$', tz) or '..' in tz:
+            return jsonify({"ok": False, "error": "Invalid timezone format"})
         result = subprocess.run(['sudo', 'timedatectl', 'set-timezone', tz],
                                capture_output=True, text=True, timeout=10)
         if result.returncode == 0:

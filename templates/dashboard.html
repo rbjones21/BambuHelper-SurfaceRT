@@ -263,6 +263,23 @@
   .wx-desc  { font-size:clamp(13px,2vw,18px); color:var(--muted); letter-spacing:2px; text-transform:uppercase; }
   .wx-range { font-size:13px; color:var(--muted); opacity:0.6; letter-spacing:1px; }
 
+  /* ── 5-day forecast strip ── */
+  #idle-forecast { display:none; margin-top:16px; gap:8px; justify-content:center; flex-wrap:wrap; }
+  #idle-forecast.active { display:flex; }
+  .fc-day {
+    display:flex; flex-direction:column; align-items:center; gap:3px;
+    background:var(--panel); border:1px solid var(--bdr); border-radius:8px;
+    padding:10px 14px; min-width:100px; transition:border-color 0.3s;
+  }
+  .fc-day:first-child { border-color:var(--muted); }
+  .fc-day-name { font-family:'Rajdhani',sans-serif; font-size:13px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:var(--muted); }
+  .fc-day:first-child .fc-day-name { color:var(--text); }
+  .fc-icon   { font-size:28px; line-height:1; }
+  .fc-temps  { font-family:'Share Tech Mono',monospace; font-size:14px; color:var(--text); letter-spacing:1px; white-space:nowrap; }
+  .fc-lo     { color:var(--muted); opacity:0.6; }
+  .fc-desc   { font-size:10px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; max-width:110px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .fc-precip { font-size:10px; color:#5588cc; letter-spacing:0.5px; }
+
   /* ── Offline overlay ── */
   .offline     { position: absolute; inset: 0; background: rgba(10,12,15,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; border-radius: 8px; z-index: 9; }
   .offline .on { font-size: 20px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); }
@@ -338,6 +355,7 @@
         <div class="wx-range" id="wx-range"></div>
       </div>
     </div>
+    <div id="idle-forecast"></div>
   </div>
 </div>
 
@@ -1024,11 +1042,31 @@ async function updateWeather() {
   try {
     const w = await fetch('/api/weather').then(r => r.json());
     const el = document.getElementById('idle-weather');
-    if (!w || !w.temp) { el.style.display = 'none'; return; }
+    const fcEl = document.getElementById('idle-forecast');
+    if (!w || !w.temp) { el.style.display = 'none'; fcEl.classList.remove('active'); return; }
     document.getElementById('wx-temp').textContent  = `${w.temp}\u00b0${w.unit}`;
     document.getElementById('wx-desc').textContent  = w.desc;
     document.getElementById('wx-range').textContent = `H:${w.high}\u00b0  L:${w.low}\u00b0  Humidity:${w.humidity}%`;
     el.style.display = 'flex';
+    // 5-day forecast
+    if (w.forecast && w.forecast.length) {
+      const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      fcEl.innerHTML = w.forecast.map((d, i) => {
+        const dt = new Date(d.date + 'T12:00:00');
+        const name = i === 0 ? 'Today' : days[dt.getDay()];
+        const precip = d.precip != null && d.precip > 0 ? `<div class="fc-precip">${d.precip}% rain</div>` : '';
+        return `<div class="fc-day">
+          <div class="fc-day-name">${name}</div>
+          <div class="fc-icon">${d.icon}</div>
+          <div class="fc-temps">${d.high}\u00b0 <span class="fc-lo">${d.low}\u00b0</span></div>
+          <div class="fc-desc">${d.desc}</div>
+          ${precip}
+        </div>`;
+      }).join('');
+      fcEl.classList.add('active');
+    } else {
+      fcEl.classList.remove('active');
+    }
   } catch(e) {}
 }
 updateWeather();
