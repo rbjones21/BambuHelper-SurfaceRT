@@ -1242,10 +1242,12 @@ def parse_print_message(state, msg):
         prev_state = state.get('gcode_state', '')
         state['gcode_state'] = p['gcode_state']
         state['printing']    = p['gcode_state'] in ('RUNNING', 'PAUSE')
-        # Track print start time
+        # Track print start time and wake display
         if p['gcode_state'] == 'RUNNING' and prev_state not in ('RUNNING', 'PAUSE'):
             state['print_start_time'] = int(time.time())
             state['_finish_recorded'] = False
+            # Wake the screen immediately when a print starts
+            threading.Thread(target=wake_screen, args=("print started",), daemon=True).start()
 
     if 'print_error' in p:
         if p['print_error'] != 0:
@@ -1259,6 +1261,8 @@ def parse_print_message(state, msg):
                 state['errors'].append(entry)
                 if len(state['errors']) > 5:
                     state['errors'].pop(0)
+                # Wake screen on new errors so they aren't missed
+                threading.Thread(target=wake_screen, args=("print error",), daemon=True).start()
         else:
             state['errors'] = []  # print_error cleared to 0 means error resolved
 
@@ -1424,56 +1428,65 @@ def periodic_broadcast():
         broadcast_state()
 
 # ---------------------------------------------------------------------------
+# Display wake helper — callable from any thread (e.g. MQTT handler)
+# ---------------------------------------------------------------------------
+_DISPLAY_ENV    = {**os.environ, 'DISPLAY': ':0', 'XAUTHORITY': os.path.expanduser('~/.Xauthority')}
+_BACKLIGHT_PATH = '/sys/class/backlight/backlight/brightness'
+_screen_is_off  = False
+
+def _get_display_brightness():
+    display = CONFIG.get('display', {})
+    return max(10, min(254, int(display.get('brightness', 128))))
+
+def wake_screen(reason=None):
+    """Turn the display on immediately. Safe to call from any thread."""
+    global _screen_is_off
+    try:
+        subprocess.run(['xset', '-display', ':0', 'dpms', 'force', 'on'],
+                       env=_DISPLAY_ENV, capture_output=True)
+        try:
+            with open(_BACKLIGHT_PATH, 'w') as f:
+                f.write(str(_get_display_brightness()))
+        except Exception:
+            pass
+        if _screen_is_off:
+            log.info("Display ON%s", f" ({reason})" if reason else "")
+            _screen_is_off = False
+    except Exception as e:
+        log.debug(f"wake_screen failed: {e}")
+
+# ---------------------------------------------------------------------------
 # Display timeout monitor
 # ---------------------------------------------------------------------------
 def display_monitor():
-    DISPLAY_ENV = {**os.environ, 'DISPLAY': ':0', 'XAUTHORITY': os.path.expanduser('~/.Xauthority')}
-    BACKLIGHT_PATH = '/sys/class/backlight/backlight/brightness'
-    is_off = False
-
-    def _get_brightness():
-        display = CONFIG.get('display', {})
-        return max(10, min(254, int(display.get('brightness', 128))))
-
-    def screen_on():
-        nonlocal is_off
-        subprocess.run(['xset', '-display', ':0', 'dpms', 'force', 'on'],
-                       env=DISPLAY_ENV, capture_output=True)
-        try:
-            with open(BACKLIGHT_PATH, 'w') as f:
-                f.write(str(_get_brightness()))
-        except Exception:
-            pass
-        if is_off:
-            log.info("Display ON")
-            is_off = False
+    global _screen_is_off
 
     def screen_off():
-        nonlocal is_off
+        global _screen_is_off
         subprocess.run(['xset', '-display', ':0', 'dpms', 'force', 'off'],
-                       env=DISPLAY_ENV, capture_output=True)
+                       env=_DISPLAY_ENV, capture_output=True)
         try:
-            with open(BACKLIGHT_PATH, 'w') as f:
+            with open(_BACKLIGHT_PATH, 'w') as f:
                 f.write('0')
         except Exception:
             pass
-        if not is_off:
+        if not _screen_is_off:
             log.info("Display OFF (timeout)")
-            is_off = True
+            _screen_is_off = True
 
-    subprocess.run(['xset', '-display', ':0', '+dpms'], env=DISPLAY_ENV, capture_output=True)
-    screen_on()
+    subprocess.run(['xset', '-display', ':0', '+dpms'], env=_DISPLAY_ENV, capture_output=True)
+    wake_screen("startup")
     all_done_since = None
 
     while True:
-        time.sleep(30)
+        time.sleep(10)
         try:
             display     = CONFIG.get('display', {})
             always_on   = display.get('always_on', False)
             timeout_min = int(display.get('timeout', 3))
             show_clock  = display.get('show_clock', True)
             if always_on or timeout_min == 0:
-                screen_on()
+                wake_screen()
                 all_done_since = None
                 continue
             with state_lock:
@@ -1483,7 +1496,7 @@ def display_monitor():
                     if s.get('enabled', True)
                 )
             if active:
-                screen_on()
+                wake_screen()
                 all_done_since = None
             else:
                 if all_done_since is None:
