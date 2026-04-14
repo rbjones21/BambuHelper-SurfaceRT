@@ -608,6 +608,57 @@
     </div>
   </div>
 
+  <!-- ── Home Monitor ── -->
+  <div class="card" id="home-settings">
+    <div class="card-hdr collapsed" onclick="toggleCard(this);if(!this.classList.contains('collapsed'))loadHomeSettings()"><h2>Home Monitor</h2><span class="chev">▼</span></div>
+    <div class="card-body hidden">
+
+      <!-- Homebridge -->
+      <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Homebridge</div>
+      <div class="field-row">
+        <label>URL</label>
+        <input type="text" id="hb-url" placeholder="http://10.0.1.253:8581"
+          style="background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:14px;width:100%">
+      </div>
+      <div class="field-row">
+        <label>Username</label>
+        <input type="text" id="hb-user" placeholder="admin"
+          style="background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:14px;width:100%">
+      </div>
+      <div class="field-row">
+        <label>Password</label>
+        <input type="password" id="hb-pass" placeholder="leave blank to keep current"
+          style="background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:14px;width:100%">
+      </div>
+      <div class="field-row">
+        <label>Poll interval</label>
+        <input type="number" id="hb-poll" min="5" max="60" value="10"
+          style="background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:14px;width:80px"> seconds
+      </div>
+      <div id="hb-status" style="font-size:12px;color:var(--muted);margin-bottom:10px"></div>
+
+      <!-- Emporia -->
+      <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin:14px 0 10px">Emporia Energy</div>
+      <div class="field-row">
+        <label>Email</label>
+        <input type="email" id="em-email" placeholder="you@example.com"
+          style="background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:14px;width:100%">
+      </div>
+      <div class="field-row">
+        <label>Password</label>
+        <input type="password" id="em-pass" placeholder="leave blank to keep current"
+          style="background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:14px;width:100%">
+      </div>
+      <div id="em-status" style="font-size:12px;color:var(--muted);margin-bottom:10px">
+        Note: requires <code>pip install pyemvue</code> on the Surface RT
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;margin-top:6px">
+        <button class="sys-btn" onclick="saveHomeSettings()">Save</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Weather ── -->
   <div class="card">
     <div class="card-hdr collapsed" onclick="toggleCard(this)"><h2>Weather</h2><span class="chev">▼</span></div>
@@ -682,18 +733,19 @@ const GAUGES = [
   { id:'progress', label:'Progress',    arc:'#00c8ff', glabel:'#00c8ff', value:'#ffffff' },
   { id:'nozzle',   label:'Nozzle',      arc:'#ff4444', glabel:'#ff6666', value:'#ffffff' },
   { id:'bed',      label:'Bed',         arc:'#ff9944', glabel:'#ffaa66', value:'#ffffff' },
+  { id:'chamber',  label:'Chamber',     arc:'#aa66ff', glabel:'#bb88ff', value:'#ffffff' },
   { id:'fan_part', label:'Part Fan',    arc:'#00c8ff', glabel:'#00c8ff', value:'#ffffff' },
   { id:'fan_aux',  label:'Aux Fan',     arc:'#44aaff', glabel:'#44aaff', value:'#ffffff' },
   { id:'fan_cham', label:'Chamber Fan', arc:'#aa66ff', glabel:'#aa66ff', value:'#ffffff' },
 ];
 
 const THEMES = {
-  default:    { bg:'#0a0c0f', track:'#141820', progress:{arc:'#00c8ff',glabel:'#00c8ff',value:'#e8edf5'}, nozzle:{arc:'#00c8ff',glabel:'#00c8ff',value:'#e8edf5'}, bed:{arc:'#ff9944',glabel:'#ff9944',value:'#e8edf5'}, fan_part:{arc:'#00c8ff',glabel:'#00c8ff',value:'#e8edf5'}, fan_aux:{arc:'#44aaff',glabel:'#44aaff',value:'#e8edf5'}, fan_cham:{arc:'#aa66ff',glabel:'#aa66ff',value:'#e8edf5'} },
-  bambu:      { bg:'#f0f2f4', track:'#dde1e7', progress:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'}, nozzle:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'}, bed:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'}, fan_part:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'}, fan_aux:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'}, fan_cham:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'} },
-  mono_green: { bg:'#050f08', track:'#0a1a0e', progress:{arc:'#00ff66',glabel:'#00ff66',value:'#ccffdd'}, nozzle:{arc:'#00ee55',glabel:'#00ee55',value:'#ccffdd'}, bed:{arc:'#00dd44',glabel:'#00dd44',value:'#ccffdd'}, fan_part:{arc:'#00ff66',glabel:'#00ff66',value:'#ccffdd'}, fan_aux:{arc:'#00cc44',glabel:'#00cc44',value:'#ccffdd'}, fan_cham:{arc:'#009933',glabel:'#009933',value:'#ccffdd'} },
-  neon:       { bg:'#080010', track:'#120020', progress:{arc:'#ff00ff',glabel:'#ff00ff',value:'#ffffff'}, nozzle:{arc:'#ff0066',glabel:'#ff0066',value:'#ffffff'}, bed:{arc:'#ff6600',glabel:'#ff6600',value:'#ffffff'}, fan_part:{arc:'#00ffff',glabel:'#00ffff',value:'#ffffff'}, fan_aux:{arc:'#aaff00',glabel:'#aaff00',value:'#ffffff'}, fan_cham:{arc:'#ff00aa',glabel:'#ff00aa',value:'#ffffff'} },
-  warm:       { bg:'#0f0800', track:'#1a1000', progress:{arc:'#ffaa00',glabel:'#ffaa00',value:'#fff0cc'}, nozzle:{arc:'#ff4400',glabel:'#ff6633',value:'#fff0cc'}, bed:{arc:'#ff8800',glabel:'#ffaa44',value:'#fff0cc'}, fan_part:{arc:'#ffcc00',glabel:'#ffcc00',value:'#fff0cc'}, fan_aux:{arc:'#ff9900',glabel:'#ff9900',value:'#fff0cc'}, fan_cham:{arc:'#cc5500',glabel:'#cc5500',value:'#fff0cc'} },
-  ocean:      { bg:'#000a14', track:'#001428', progress:{arc:'#00aaff',glabel:'#00aaff',value:'#cce8ff'}, nozzle:{arc:'#0066ff',glabel:'#4488ff',value:'#cce8ff'}, bed:{arc:'#00ccaa',glabel:'#00ddbb',value:'#cce8ff'}, fan_part:{arc:'#0088ff',glabel:'#0088ff',value:'#cce8ff'}, fan_aux:{arc:'#00bbcc',glabel:'#00bbcc',value:'#cce8ff'}, fan_cham:{arc:'#0044aa',glabel:'#0044aa',value:'#cce8ff'} },
+  default:    { bg:'#0a0c0f', track:'#141820', progress:{arc:'#00c8ff',glabel:'#00c8ff',value:'#e8edf5'}, nozzle:{arc:'#00c8ff',glabel:'#00c8ff',value:'#e8edf5'}, bed:{arc:'#ff9944',glabel:'#ff9944',value:'#e8edf5'}, chamber:{arc:'#aa66ff',glabel:'#aa66ff',value:'#e8edf5'}, fan_part:{arc:'#00c8ff',glabel:'#00c8ff',value:'#e8edf5'}, fan_aux:{arc:'#44aaff',glabel:'#44aaff',value:'#e8edf5'}, fan_cham:{arc:'#aa66ff',glabel:'#aa66ff',value:'#e8edf5'} },
+  bambu:      { bg:'#f0f2f4', track:'#dde1e7', progress:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'}, nozzle:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'}, bed:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'}, chamber:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'}, fan_part:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'}, fan_aux:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'}, fan_cham:{arc:'#00aa44',glabel:'#00aa44',value:'#111111'} },
+  mono_green: { bg:'#050f08', track:'#0a1a0e', progress:{arc:'#00ff66',glabel:'#00ff66',value:'#ccffdd'}, nozzle:{arc:'#00ee55',glabel:'#00ee55',value:'#ccffdd'}, bed:{arc:'#00dd44',glabel:'#00dd44',value:'#ccffdd'}, chamber:{arc:'#009933',glabel:'#009933',value:'#ccffdd'}, fan_part:{arc:'#00ff66',glabel:'#00ff66',value:'#ccffdd'}, fan_aux:{arc:'#00cc44',glabel:'#00cc44',value:'#ccffdd'}, fan_cham:{arc:'#009933',glabel:'#009933',value:'#ccffdd'} },
+  neon:       { bg:'#080010', track:'#120020', progress:{arc:'#ff00ff',glabel:'#ff00ff',value:'#ffffff'}, nozzle:{arc:'#ff0066',glabel:'#ff0066',value:'#ffffff'}, bed:{arc:'#ff6600',glabel:'#ff6600',value:'#ffffff'}, chamber:{arc:'#ff00aa',glabel:'#ff00aa',value:'#ffffff'}, fan_part:{arc:'#00ffff',glabel:'#00ffff',value:'#ffffff'}, fan_aux:{arc:'#aaff00',glabel:'#aaff00',value:'#ffffff'}, fan_cham:{arc:'#ff00aa',glabel:'#ff00aa',value:'#ffffff'} },
+  warm:       { bg:'#0f0800', track:'#1a1000', progress:{arc:'#ffaa00',glabel:'#ffaa00',value:'#fff0cc'}, nozzle:{arc:'#ff4400',glabel:'#ff6633',value:'#fff0cc'}, bed:{arc:'#ff8800',glabel:'#ffaa44',value:'#fff0cc'}, chamber:{arc:'#cc5500',glabel:'#cc5500',value:'#fff0cc'}, fan_part:{arc:'#ffcc00',glabel:'#ffcc00',value:'#fff0cc'}, fan_aux:{arc:'#ff9900',glabel:'#ff9900',value:'#fff0cc'}, fan_cham:{arc:'#cc5500',glabel:'#cc5500',value:'#fff0cc'} },
+  ocean:      { bg:'#000a14', track:'#001428', progress:{arc:'#00aaff',glabel:'#00aaff',value:'#cce8ff'}, nozzle:{arc:'#0066ff',glabel:'#4488ff',value:'#cce8ff'}, bed:{arc:'#00ccaa',glabel:'#00ddbb',value:'#cce8ff'}, chamber:{arc:'#0044aa',glabel:'#0044aa',value:'#cce8ff'}, fan_part:{arc:'#0088ff',glabel:'#0088ff',value:'#cce8ff'}, fan_aux:{arc:'#00bbcc',glabel:'#00bbcc',value:'#cce8ff'}, fan_cham:{arc:'#0044aa',glabel:'#0044aa',value:'#cce8ff'} },
 };
 
 // ── State ──────────────────────────────────────────────────────────────────
@@ -1224,6 +1276,67 @@ function kbdKey(k) {
     _kbdValue += (!_kbdNumMode && _kbdUpper) ? k.toUpperCase() : k;
   }
   document.getElementById('kbd-display').textContent = _kbdValue || '';
+}
+
+// ── Home Monitor settings ───────────────────────────────────────────────────
+async function loadHomeSettings() {
+  try {
+    const cfg = await fetch('/api/config').then(r => r.json());
+    const hb = cfg.homebridge || {};
+    const em = cfg.emporia || {};
+    if (hb.url)      document.getElementById('hb-url').value  = hb.url;
+    if (hb.username) document.getElementById('hb-user').value = hb.username;
+    if (hb.poll_interval) document.getElementById('hb-poll').value = hb.poll_interval;
+    if (em.email)    document.getElementById('em-email').value = em.email;
+
+    // Show connection status
+    try {
+      const hs = await fetch('/api/home/state').then(r => r.json());
+      document.getElementById('hb-status').textContent =
+        hs.hb_connected ? '✓ Connected — ' + (hs.accessories || []).length + ' accessories'
+                        : hb.url ? '✗ Not connected' : 'Not configured';
+      document.getElementById('em-status').innerHTML =
+        hs.em_connected ? '✓ Connected'
+        : em.email ? '✗ Not connected (check credentials or install pyemvue)'
+        : 'Note: requires <code>pip install pyemvue</code> on the Surface RT';
+    } catch(e) {}
+  } catch(e) {}
+}
+
+async function saveHomeSettings() {
+  const payload = {
+    homebridge: {
+      url:           document.getElementById('hb-url').value.trim(),
+      username:      document.getElementById('hb-user').value.trim(),
+      poll_interval: parseInt(document.getElementById('hb-poll').value) || 10,
+    },
+    emporia: {
+      email: document.getElementById('em-email').value.trim(),
+    }
+  };
+  const hbPass = document.getElementById('hb-pass').value;
+  const emPass = document.getElementById('em-pass').value;
+  if (hbPass) payload.homebridge.password = hbPass;
+  if (emPass) payload.emporia.password    = emPass;
+
+  try {
+    const r = await fetch('/api/home/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const d = await r.json();
+    if (d.ok) {
+      showToast('Home settings saved', 'success');
+      document.getElementById('hb-pass').value = '';
+      document.getElementById('em-pass').value = '';
+      setTimeout(loadHomeSettings, 1500);
+    } else {
+      showToast('Save failed: ' + (d.error || 'unknown error'), 'error');
+    }
+  } catch(e) {
+    showToast('Save failed: ' + e, 'error');
+  }
 }
 
 // ── Weather settings ───────────────────────────────────────────────────────

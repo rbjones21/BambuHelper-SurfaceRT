@@ -90,6 +90,18 @@ if 'secret_key' not in CONFIG:
     CONFIG['secret_key'] = secrets.token_hex(32)
     save_config_to_disk(CONFIG)
 
+# Seed default homebridge/emporia blocks if not present (user fills credentials via settings)
+_config_dirty = False
+if 'homebridge' not in CONFIG:
+    CONFIG['homebridge'] = {"url": "http://10.0.1.253:8581", "username": "admin",
+                            "password": "", "poll_interval": 10}
+    _config_dirty = True
+if 'emporia' not in CONFIG:
+    CONFIG['emporia'] = {"email": "", "password": "", "poll_interval": 30}
+    _config_dirty = True
+if _config_dirty:
+    save_config_to_disk(CONFIG)
+
 # ---------------------------------------------------------------------------
 # Access control helpers — LAN access + settings PIN
 # ---------------------------------------------------------------------------
@@ -452,6 +464,7 @@ def default_state(printer_cfg):
         "bed_temp":       0.0,
         "bed_target":     0.0,
         "chamber_temp":   0.0,
+        "chamber_target": 0.0,
         "fan_part":       0,
         "fan_aux":        0,
         "fan_chamber":    0,
@@ -637,6 +650,303 @@ def record_print_finished(state):
     log.info(f"[{state['id']}] Print history recorded: {name!r}")
 
 # ---------------------------------------------------------------------------
+# HomeMonitorRT — Homebridge client
+# ---------------------------------------------------------------------------
+class HomebridgeClient:
+    """Thin wrapper around the Homebridge Config UI X REST API."""
+
+    def __init__(self, url, username, password):
+        self.url      = url.rstrip('/')
+        self.username = username
+        self.password = password
+        self._token     = None
+        self._token_exp = 0
+        self._lock      = threading.Lock()
+
+    def _ensure_token(self):
+        with self._lock:
+            if self._token and time.time() < self._token_exp - 300:
+                return True
+            try:
+                data = json.dumps({"username": self.username, "password": self.password}).encode()
+                req  = urllib.request.Request(
+                    f"{self.url}/api/auth/login", data=data,
+                    headers={"Content-Type": "application/json"})
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    result = json.loads(resp.read())
+                self._token     = result['access_token']
+                self._token_exp = time.time() + result.get('expires_in', 28800)
+                log.info("Homebridge auth OK")
+                return True
+            except Exception as e:
+                log.warning(f"Homebridge auth failed: {e}")
+                self._token = None
+                return False
+
+    def _headers(self):
+        return {"Authorization": f"Bearer {self._token}"}
+
+    def get_accessories(self):
+        if not self._ensure_token():
+            return None
+        try:
+            req = urllib.request.Request(
+                f"{self.url}/api/accessories", headers=self._headers())
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return json.loads(resp.read())
+        except Exception as e:
+            log.warning(f"Homebridge accessories fetch failed: {e}")
+            return None
+
+    def control(self, unique_id, characteristic_type, value):
+        if not self._ensure_token():
+            return None
+        try:
+            data = json.dumps({"characteristicType": characteristic_type, "value": value}).encode()
+            req  = urllib.request.Request(
+                f"{self.url}/api/accessories/{unique_id}", data=data,
+                headers={**self._headers(), "Content-Type": "application/json"},
+                method="PUT")
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return json.loads(resp.read())
+        except Exception as e:
+            log.warning(f"Homebridge control failed ({unique_id}): {e}")
+            return None
+
+
+# ---------------------------------------------------------------------------
+# HomeMonitorRT — Emporia Energy client
+# ---------------------------------------------------------------------------
+class EmporiaClient:
+    """Polls Emporia cloud via pyemvue (if installed)."""
+
+    def __init__(self, email, password):
+        self.email    = email
+        self.password = password
+        self._vue     = None
+
+    def _ensure_connected(self):
+        if self._vue:
+            return True
+        try:
+            import pyemvue
+            self._vue = pyemvue.PyEmVue()
+            self._vue.login(username=self.email, password=self.password)
+            log.info("Emporia login OK")
+            return True
+        except ImportError:
+            log.warning("pyemvue not installed — Emporia data unavailable")
+            return False
+        except Exception as e:
+            log.warning(f"Emporia login failed: {e}")
+            self._vue = None
+            return False
+
+    def get_usage(self):
+        if not self._ensure_connected():
+            return None
+        try:
+            import pyemvue
+            from pyemvue.enums import Scale, Unit
+            devices = self._vue.get_devices()
+            if not devices:
+                return None
+            device  = devices[0]
+            usage   = self._vue.get_device_list_usage(
+                deviceGids=[device.device_gid],
+                instant=None,
+                scale=Scale.SECOND.value,
+                unit=Unit.WATTS.value)
+            result = {"devices": [], "total_watts": 0}
+            for gid, dev_usage in usage.items():
+                channels = []
+                total    = 0
+                for ch_num, ch in dev_usage.channels.items():
+                    if ch_num == '1,2,3':
+                        total = round(ch.usage or 0, 1) if ch.usage else 0
+                        continue
+                    channels.append({
+                        "channel": ch_num,
+                        "name":    ch.name or f"Circuit {ch_num}",
+                        "watts":   round(ch.usage or 0, 1) if ch.usage else 0,
+                    })
+                result["devices"].append({
+                    "name":     device.device_name or "Home",
+                    "total":    total,
+                    "channels": sorted(channels, key=lambda c: -c['watts'])[:12],
+                })
+                result["total_watts"] += total
+            result["total_watts"] = round(result["total_watts"], 1)
+            return result
+        except Exception as e:
+            log.warning(f"Emporia usage fetch failed: {e}")
+            self._vue = None  # force reconnect next time
+            return None
+
+
+# ---------------------------------------------------------------------------
+# HomeMonitorRT — shared state
+# ---------------------------------------------------------------------------
+_home_state = {
+    "accessories":  [],
+    "emporia":      None,
+    "hb_connected": False,
+    "em_connected": False,
+    "last_update":  0,
+}
+_home_state_lock = threading.Lock()
+
+_hb_client = None  # HomebridgeClient singleton
+_em_client = None  # EmporiaClient singleton
+
+
+def _build_home_clients():
+    """(Re-)create HB and Emporia clients from current CONFIG."""
+    global _hb_client, _em_client
+    hb_cfg = CONFIG.get('homebridge', {})
+    if hb_cfg.get('url') and hb_cfg.get('username'):
+        _hb_client = HomebridgeClient(
+            hb_cfg['url'], hb_cfg['username'], hb_cfg['password'])
+    else:
+        _hb_client = None
+
+    em_cfg = CONFIG.get('emporia', {})
+    if em_cfg.get('email') and em_cfg.get('password'):
+        _em_client = EmporiaClient(em_cfg['email'], em_cfg['password'])
+    else:
+        _em_client = None
+
+
+_build_home_clients()
+
+
+def broadcast_home_state():
+    with _home_state_lock:
+        data = dict(_home_state)
+    socketio.emit('home_state_update', data)
+
+
+def homebridge_worker():
+    """Background thread: poll Homebridge accessories and push via Socket.IO."""
+    while True:
+        hb_cfg   = CONFIG.get('homebridge', {})
+        interval = int(hb_cfg.get('poll_interval', 10))
+        client   = _hb_client
+        if client:
+            try:
+                accessories = client.get_accessories()
+                if accessories is not None:
+                    # Filter out Protocol Information (housekeeping entry)
+                    accessories = [a for a in accessories
+                                   if a.get('humanType') != 'Protocol Information']
+                    with _home_state_lock:
+                        _home_state['accessories']  = accessories
+                        _home_state['hb_connected'] = True
+                        _home_state['last_update']  = time.time()
+                    broadcast_home_state()
+                else:
+                    with _home_state_lock:
+                        _home_state['hb_connected'] = False
+                    broadcast_home_state()
+            except Exception as e:
+                log.warning(f"Homebridge worker error: {e}")
+                with _home_state_lock:
+                    _home_state['hb_connected'] = False
+        time.sleep(interval)
+
+
+def emporia_worker():
+    """Background thread: poll Emporia energy data and push via Socket.IO."""
+    while True:
+        em_cfg   = CONFIG.get('emporia', {})
+        interval = int(em_cfg.get('poll_interval', 30))
+        client   = _em_client
+        if client:
+            try:
+                usage = client.get_usage()
+                with _home_state_lock:
+                    _home_state['emporia']      = usage
+                    _home_state['em_connected'] = usage is not None
+                broadcast_home_state()
+            except Exception as e:
+                log.warning(f"Emporia worker error: {e}")
+        time.sleep(interval)
+
+
+# ---------------------------------------------------------------------------
+# HomeMonitorRT — room config helpers
+# ---------------------------------------------------------------------------
+_EXTERIOR_KEYWORDS = {'driveway', 'front door', 'porch', 'back door', 'steplight',
+                      'hot tub', 'exterior', 'outdoor', 'outside', 'garage'}
+_SENSOR_TYPES      = {'Temperature Sensor', 'Humidity Sensor', 'Carbon Dioxide Sensor',
+                      'Air Quality Sensor', 'Contact Sensor', 'Leak Sensor',
+                      'Carbon Monoxide Sensor', 'Smoke Sensor'}
+_WEATHER_NAMES     = {'temperature', 'humidity', 'dew point', 'apparent temperature',
+                      'air pressure', 'cloud cover', 'rain', 'snow', 'uv index',
+                      'wind speed', 'wind dir'}
+
+
+def auto_assign_rooms(accessories):
+    """
+    Assign accessories into default rooms when no rooms config exists.
+    Returns list of room dicts: [{id, name, deviceIds: [uniqueId, ...]}, ...]
+    """
+    interior, exterior, sensors, other = [], [], [], []
+    for acc in accessories:
+        name      = acc.get('serviceName', '').lower()
+        htype     = acc.get('humanType', '')
+        unique_id = acc.get('uniqueId', '')
+
+        # Skip housekeeping types
+        if htype in ('Protocol Information', 'Battery'):
+            continue
+
+        # Sensor types
+        if htype in _SENSOR_TYPES:
+            # Separate outdoor/weather sensors into their own group
+            if any(w in name for w in _WEATHER_NAMES):
+                sensors.append(unique_id)
+            else:
+                sensors.append(unique_id)
+            continue
+
+        # Motion sensors: go with the light they're paired with (exterior check)
+        if htype == 'Motion Sensor':
+            if any(k in name for k in _EXTERIOR_KEYWORDS):
+                exterior.append(unique_id)
+            else:
+                interior.append(unique_id)
+            continue
+
+        # Exterior check by name
+        if any(k in name for k in _EXTERIOR_KEYWORDS):
+            exterior.append(unique_id)
+        else:
+            interior.append(unique_id)
+
+    rooms = []
+    if interior:
+        rooms.append({"id": "interior", "name": "Interior", "deviceIds": interior})
+    if exterior:
+        rooms.append({"id": "exterior", "name": "Exterior", "deviceIds": exterior})
+    if sensors:
+        rooms.append({"id": "sensors",  "name": "Sensors",  "deviceIds": sensors})
+    return rooms
+
+
+def get_home_rooms():
+    """
+    Return rooms list from config, auto-assigning from live accessories if not set.
+    """
+    rooms = (CONFIG.get('homebridge') or {}).get('rooms')
+    if rooms:
+        return rooms
+    with _home_state_lock:
+        accessories = _home_state.get('accessories', [])
+    return auto_assign_rooms(accessories)
+
+
+# ---------------------------------------------------------------------------
 # Flask + SocketIO
 # ---------------------------------------------------------------------------
 app = Flask(__name__)
@@ -776,8 +1086,9 @@ def api_weather_settings():
     _weather_cache['data']       = None
     return jsonify({"ok": True})
 
-_SENSITIVE_CONFIG_KEYS = {'secret_key', 'settings_pin'}
+_SENSITIVE_CONFIG_KEYS  = {'secret_key', 'settings_pin'}
 _SENSITIVE_PRINTER_KEYS = {'bambu_token', 'access_code'}
+_SENSITIVE_HOME_KEYS    = {'password'}  # redacted in homebridge/emporia blocks
 
 @app.route('/api/config')
 def api_config():
@@ -791,6 +1102,10 @@ def api_config():
              for k, v in p.items()}
             for p in safe['printers']
         ]
+    for block in ('homebridge', 'emporia'):
+        if block in safe and isinstance(safe[block], dict):
+            safe[block] = {k: ('***' if k in _SENSITIVE_HOME_KEYS and v else v)
+                           for k, v in safe[block].items()}
     return jsonify(safe)
 
 @app.route('/api/config/save', methods=['POST'])
@@ -1195,7 +1510,13 @@ def parse_print_message(state, msg):
             log.info(f"[{state['id']}] UNKNOWN nozzle/temp field: {k} = {v!r}")
     if 'bed_temper'           in p: state['bed_temp']        = round(float(p['bed_temper']), 1)
     if 'bed_target_temper'    in p: state['bed_target']      = round(float(p['bed_target_temper']), 1)
-    if 'chamber_temper'       in p: state['chamber_temp']    = round(float(p['chamber_temper']), 1)
+    # Chamber temp is in device.ctc.info.temp — packed as (target<<16)|current (same encoding as extruder temps)
+    try:
+        ctc_packed = int(p['device']['ctc']['info']['temp'])
+        state['chamber_temp']   = float(ctc_packed & 0xFFFF)
+        state['chamber_target'] = float((ctc_packed >> 16) & 0xFFFF)
+    except (KeyError, TypeError, ValueError):
+        pass
     if 'cooling_fan_speed'    in p: state['fan_part']        = round((int(p['cooling_fan_speed']) / 15) * 100)
     if 'big_fan1_speed'       in p: state['fan_aux']         = round((int(p['big_fan1_speed'])    / 15) * 100)
     if 'big_fan2_speed'       in p: state['fan_chamber']     = round((int(p['big_fan2_speed'])    / 15) * 100)
@@ -2017,6 +2338,83 @@ def api_system_pin_protect_local():
     return jsonify({"ok": True, "pin_protect_local": CONFIG['pin_protect_local']})
 
 # ---------------------------------------------------------------------------
+# API — HomeMonitorRT
+# ---------------------------------------------------------------------------
+@app.route('/api/home/state')
+def api_home_state():
+    with _home_state_lock:
+        data = dict(_home_state)
+    return jsonify(data)
+
+
+@app.route('/api/home/rooms')
+def api_home_rooms():
+    return jsonify(get_home_rooms())
+
+
+@app.route('/api/home/control', methods=['POST'])
+def api_home_control():
+    """Toggle or set a Homebridge accessory characteristic."""
+    data            = request.get_json() or {}
+    unique_id       = data.get('uniqueId', '').strip()
+    characteristic  = data.get('characteristicType', 'On')
+    value           = data.get('value')
+
+    if not unique_id:
+        return jsonify({"ok": False, "error": "uniqueId required"})
+    if value is None:
+        return jsonify({"ok": False, "error": "value required"})
+
+    client = _hb_client
+    if not client:
+        return jsonify({"ok": False, "error": "Homebridge not configured"})
+
+    result = client.control(unique_id, characteristic, value)
+    if result is None:
+        return jsonify({"ok": False, "error": "Homebridge control call failed"})
+
+    # Update cached state optimistically so next broadcast reflects the change
+    with _home_state_lock:
+        for acc in _home_state.get('accessories', []):
+            if acc.get('uniqueId') == unique_id:
+                if 'values' in acc:
+                    acc['values'][characteristic] = value
+                break
+    broadcast_home_state()
+    return jsonify({"ok": True})
+
+
+@app.route('/api/home/config', methods=['POST'])
+def api_home_config():
+    """Save Homebridge + Emporia credentials and room assignments."""
+    global _hb_client, _em_client
+    data = request.get_json() or {}
+
+    hb = data.get('homebridge', {})
+    if hb:
+        existing = CONFIG.setdefault('homebridge', {})
+        existing['url']           = hb.get('url', existing.get('url', ''))
+        existing['username']      = hb.get('username', existing.get('username', ''))
+        if hb.get('password'):  # only update password if provided
+            existing['password']  = hb['password']
+        existing['poll_interval'] = int(hb.get('poll_interval', existing.get('poll_interval', 10)))
+        if 'rooms' in hb:
+            existing['rooms']     = hb['rooms']
+
+    em = data.get('emporia', {})
+    if em:
+        existing = CONFIG.setdefault('emporia', {})
+        existing['email']         = em.get('email', existing.get('email', ''))
+        if em.get('password'):
+            existing['password']  = em['password']
+        existing['poll_interval'] = int(em.get('poll_interval', existing.get('poll_interval', 30)))
+
+    save_config_to_disk(CONFIG)
+    _build_home_clients()
+    return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
 # API — Clear printer errors (manual dismiss for stale cloud MQTT errors)
 # ---------------------------------------------------------------------------
 @app.route('/api/printer/clear_errors', methods=['POST'])
@@ -2108,5 +2506,7 @@ if __name__ == '__main__':
         t.start()
     threading.Thread(target=periodic_broadcast, daemon=True).start()
     threading.Thread(target=display_monitor, daemon=True).start()
+    threading.Thread(target=homebridge_worker, daemon=True).start()
+    threading.Thread(target=emporia_worker, daemon=True).start()
     log.info("Web server starting on port 5000 (LAN access: %s)", lan_access_enabled())
     socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)

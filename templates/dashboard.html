@@ -48,6 +48,19 @@
   .logo    { font-size: 24px; font-weight: 700; letter-spacing: 3px; color: #00c8ff; }
   .logo em { color: var(--text); font-style: normal; }
   .hdr-r   { display: flex; align-items: center; gap: 16px; }
+
+  /* ── Page tab nav ── */
+  .tab-nav { display: flex; gap: 4px; }
+  .tab-btn {
+    font-family: 'Rajdhani', sans-serif; font-size: 14px; font-weight: 600;
+    letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer;
+    color: var(--muted); background: transparent;
+    border: 1px solid var(--bdr); border-radius: 4px; padding: 4px 14px;
+    transition: color 0.2s, background 0.2s, border-color 0.2s;
+    touch-action: manipulation;
+  }
+  .tab-btn.active { color: var(--text); background: var(--bdr); border-color: #00c8ff; }
+  .tab-btn:active { opacity: 0.75; }
   .clock   { font-family: 'Share Tech Mono', monospace; font-size: 20px; color: var(--muted); letter-spacing: 2px; }
   .cfg-btn {
     font-family: 'Rajdhani', sans-serif;
@@ -290,6 +303,79 @@
   .dots span:nth-child(3) { animation-delay: .4s; }
   @keyframes dp { 0%,80%,100%{ opacity:.15; transform:scale(.8); } 40%{ opacity:1; transform:scale(1.1); } }
 
+  /* ── Home view ── */
+  #home-view { display: none; flex-direction: column; height: 100%; overflow: hidden; }
+
+  /* Room sub-tabs */
+  .room-tabs { display: flex; gap: 4px; padding: 8px 10px 0; flex-shrink: 0; overflow-x: auto; scrollbar-width: none; }
+  .room-tabs::-webkit-scrollbar { display: none; }
+  .room-tab {
+    font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 600;
+    letter-spacing: 1.5px; text-transform: uppercase; white-space: nowrap;
+    color: var(--muted); background: var(--panel); border: 1px solid var(--bdr);
+    border-radius: 4px 4px 0 0; padding: 5px 14px; cursor: pointer;
+    touch-action: manipulation; transition: color 0.2s, border-color 0.2s;
+  }
+  .room-tab.active { color: var(--text); border-color: #00c8ff; border-bottom-color: var(--panel); }
+  .room-tab:active { opacity: 0.7; }
+
+  /* Device grid */
+  #home-content {
+    flex: 1; min-height: 0; overflow-y: auto; padding: 10px;
+    scrollbar-width: thin; scrollbar-color: var(--muted) transparent;
+  }
+  .device-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .device-grid.wide { grid-template-columns: repeat(5, 1fr); }
+
+  /* Device card */
+  .dev-card {
+    background: var(--panel); border: 1px solid var(--bdr); border-radius: 8px;
+    padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;
+    cursor: pointer; touch-action: manipulation; transition: border-color 0.2s, background 0.2s;
+    min-height: 90px; position: relative;
+  }
+  .dev-card.on    { border-color: #00c8ff40; background: #00c8ff08; }
+  .dev-card.no-ctrl { cursor: default; }
+  .dev-card:active:not(.no-ctrl) { opacity: 0.75; }
+  .dev-icon  { font-size: 22px; line-height: 1; }
+  .dev-name  { font-size: 13px; font-weight: 600; letter-spacing: 0.5px; color: var(--text); line-height: 1.2; }
+  .dev-state { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+  .dev-state.on { color: #00c8ff; }
+  .dev-toggle {
+    position: absolute; top: 10px; right: 10px;
+    width: 28px; height: 16px; border-radius: 8px;
+    background: var(--bdr); transition: background 0.2s; flex-shrink: 0;
+  }
+  .dev-toggle::after {
+    content: ''; position: absolute; width: 12px; height: 12px;
+    border-radius: 50%; background: var(--muted);
+    top: 2px; left: 2px; transition: transform 0.2s, background 0.2s;
+  }
+  .dev-card.on .dev-toggle { background: #00c8ff40; }
+  .dev-card.on .dev-toggle::after { transform: translateX(12px); background: #00c8ff; }
+
+  /* Brightness bar */
+  .dev-bright { height: 3px; border-radius: 2px; background: var(--bdr); margin-top: 2px; overflow: hidden; }
+  .dev-bright-fill { height: 100%; border-radius: 2px; background: #00c8ff; transition: width 0.3s; }
+
+  /* Sensor card (read-only) */
+  .dev-value { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: 1px; margin-top: auto; }
+  .dev-unit  { font-size: 11px; color: var(--muted); letter-spacing: 1px; }
+
+  /* Overview summary cards */
+  .overview-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+  .sum-card { background: var(--panel); border: 1px solid var(--bdr); border-radius: 8px; padding: 14px 16px; }
+  .sum-title { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .sum-value { font-size: 28px; font-weight: 700; color: var(--text); letter-spacing: 1px; }
+  .sum-sub   { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .sum-card.energy .sum-value { color: #ffcc00; }
+  .sum-card.lights .sum-value { color: #00c8ff; }
+
+  /* Home not-configured placeholder */
+  .home-unconfigured { display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; gap: 10px; color: var(--muted); }
+  .home-unconfigured a { color: #00c8ff; text-decoration: none; }
+
   /* ── Update overlay ── */
   #update-overlay {
     display: none; position: fixed; inset: 0; z-index: 9999;
@@ -320,6 +406,10 @@
 <div id="root">
   <header>
     <div class="logo">BambuHelper<em>RT</em></div>
+    <div class="tab-nav">
+      <button class="tab-btn active" id="tab-printers" onclick="switchTab('printers')">&#9113; Printers</button>
+      <button class="tab-btn" id="tab-home" onclick="switchTab('home')">&#8962; Home</button>
+    </div>
     <div class="hdr-r">
       <div class="batt-status" id="batt-status" style="display:none">
         <span class="batt-bolt" id="batt-bolt" style="display:none">&#9889;</span>
@@ -344,6 +434,10 @@
     <span style="background:#00c8ff;color:#000;font-size:12px;font-weight:700;padding:5px 12px;border-radius:5px;white-space:nowrap">Update Now →</span>
   </a>
   <div id="printers"></div>
+  <div id="home-view">
+    <div class="room-tabs" id="room-tabs"></div>
+    <div id="home-content"></div>
+  </div>
   <div id="idle-clock">
     <div class="idle-time" id="idle-time-display">--:--</div>
     <div class="idle-date" id="idle-date-display">---</div>
@@ -517,11 +611,12 @@ const FILAMENT_TYPE = {
   GFL99: 'PLA',      GFL96: 'PLA Silk',  GFL00: 'PLA',
   GFG99: 'PETG',     GFG00: 'PETG',      GFG02: 'PETG HF',
   GFA00: 'PLA Basic', GFA01: 'PLA Matte', GFA06: 'PLA Silk+',
-  GFH99: 'ASA',      GFB99: 'PA',        GFT99: 'TPU',
+  GFH99: 'ASA',      GFB99: 'ABS',       GFT99: 'TPU',
   GFC99: 'PC',       GFS99: 'PVA',
+  GFB00: 'ABS',
   // 3-char prefix fallbacks
   GFL: 'PLA',  GFG: 'PETG', GFA: 'PLA',  GFT: 'TPU',
-  GFB: 'PA',   GFC: 'PC',   GFS: 'PVA',  GFN: 'CF',
+  GFB: 'ABS',  GFC: 'PC',   GFS: 'PVA',  GFN: 'CF',
   GFH: 'ASA',  GFF: 'PA-CF', GFI: 'PAHT', GFJ: 'PC-CF',
 };
 function filamentShort(name, type) {
@@ -689,11 +784,12 @@ function panel(s, idx) {
 
   // Bar gauges for bed + chamber + speed
   const bedCol     = COLORS.bed?.arc || '#ff9944';
-  const chamberCol = '#aa66ff';
+  const chamberCol = COLORS.chamber?.arc || '#aa66ff';
   const speedCol   = '#00e878';
   const bedTemp    = Math.round(s.bed_temp || 0);
   const bedTgt     = Math.round(s.bed_target || 0);
   const chamberTemp = Math.round(s.chamber_temp || 0);
+  const chamberTgt  = Math.round(s.chamber_target || 0);
   const spdMag     = s.spd_mag || 100;
   const spdLvl     = s.spd_lvl || 2;
   const spdLabels  = { 1: 'Silent', 2: 'Standard', 3: 'Sport', 4: 'Ludicrous' };
@@ -837,7 +933,7 @@ function panel(s, idx) {
         <div class="gc">
           <div class="gc-lbl">Chamber</div>
           ${(() => {
-            const cFPct = Math.min(100, chamberTemp / 60 * 100).toFixed(1);
+            const cFPct = Math.min(100, chamberTemp / 70 * 100).toFixed(1);
             return `
           <div class="vg-outer">
             <div class="vg-bar">
@@ -845,7 +941,7 @@ function panel(s, idx) {
             </div>
           </div>
           <div class="vg-val">${chamberTemp}</div>
-          <div class="vg-sub">&deg;C</div>`;
+          <div class="vg-sub">${chamberTgt > 0 ? '&#9658;' + chamberTgt + '&deg;' : '&deg;C'}</div>`;
           })()}
         </div>
         <div class="gc">
@@ -997,21 +1093,23 @@ function render(states) {
     }
   });
 
-  const el        = document.getElementById('printers');
-  const idleClock = document.getElementById('idle-clock');
+  const el = document.getElementById('printers');
   // During grace period, treat briefly-disconnected printers as still active
   const anyActive = states.some(s => {
     const inGrace = !s.connected && s._offline_since && (now - s._offline_since <= 8000);
     return (s.connected || inGrace) && (s.gcode_state === 'RUNNING' || s.gcode_state === 'PAUSE');
   });
 
-  // Show idle clock when no printer is actively printing
-  if (anyActive) {
-    idleClock.classList.remove('active');
-    el.style.display = '';
+  const wasActive = _anyActive;
+  _anyActive = anyActive;
+
+  // Auto-switch tabs on print state change
+  if (anyActive && !wasActive) {
+    switchTab('printers');          // print started → show printers
+  } else if (!anyActive && wasActive) {
+    switchTab('home');              // print stopped → show home
   } else {
-    idleClock.classList.add('active');
-    el.style.display = 'none';
+    updateVisibility();             // no change in active state, just refresh layout
   }
 
   // Single printer mode uses wider layout
@@ -1108,9 +1206,253 @@ async function checkForUpdate() {
 checkForUpdate();
 setInterval(checkForUpdate, 6 * 3600 * 1000); // re-check every 6 hours
 
+// ── Tab switching ────────────────────────────────────────────────────────
+let currentTab   = 'printers';
+let _anyActive   = false;  // updated by render(), read by updateVisibility()
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tab-printers').classList.toggle('active', tab === 'printers');
+  document.getElementById('tab-home').classList.toggle('active', tab === 'home');
+  updateVisibility();
+}
+
+function updateVisibility() {
+  const printersEl  = document.getElementById('printers');
+  const idleClockEl = document.getElementById('idle-clock');
+  const homeEl      = document.getElementById('home-view');
+
+  if (currentTab === 'home') {
+    printersEl.style.display  = 'none';
+    idleClockEl.classList.remove('active');
+    homeEl.style.display = 'flex';
+  } else {
+    homeEl.style.display = 'none';
+    if (_anyActive) {
+      idleClockEl.classList.remove('active');
+      printersEl.style.display = '';
+    } else {
+      idleClockEl.classList.add('active');
+      printersEl.style.display = 'none';
+    }
+  }
+}
+
+// ── HomeMonitorRT — state + rendering ────────────────────────────────────
+let _homeState    = { accessories: [], emporia: null, hb_connected: false };
+let _homeRooms    = [];
+let _activeRoom   = 'overview';
+
+// Fetch room config once on load
+async function loadHomeRooms() {
+  try {
+    _homeRooms = await fetch('/api/home/rooms').then(r => r.json());
+  } catch(e) {}
+}
+loadHomeRooms();
+
+// Fetch initial home state
+async function loadHomeState() {
+  try {
+    _homeState = await fetch('/api/home/state').then(r => r.json());
+    renderHome();
+  } catch(e) {}
+}
+loadHomeState();
+
+// Icons per HomeKit type
+const HK_ICONS = {
+  'Lightbulb':             '💡',
+  'Switch':                '🔘',
+  'Outlet':                '🔌',
+  'Motion Sensor':         '🚶',
+  'Temperature Sensor':    '🌡️',
+  'Humidity Sensor':       '💧',
+  'Carbon Dioxide Sensor': '🫧',
+  'Carbon Monoxide Sensor':'⚠️',
+  'Smoke Sensor':          '🔥',
+  'Air Quality Sensor':    '🌬️',
+  'Contact Sensor':        '🚪',
+  'Leak Sensor':           '💦',
+  'Speaker':               '🔊',
+  'Battery':               '🔋',
+};
+
+// Types where tap should toggle On/Off
+const TOGGLEABLE = new Set(['Lightbulb', 'Switch', 'Outlet']);
+// Types that are pure sensors (read-only)
+const SENSOR_TYPES = new Set(['Temperature Sensor','Humidity Sensor','Carbon Dioxide Sensor',
+  'Carbon Monoxide Sensor','Smoke Sensor','Air Quality Sensor','Contact Sensor','Leak Sensor',
+  'Motion Sensor','Battery']);
+
+function devCard(acc) {
+  const htype   = acc.humanType || '';
+  const name    = acc.serviceName || '';
+  const vals    = acc.values || {};
+  const uid     = acc.uniqueId || '';
+  const icon    = HK_ICONS[htype] || '📦';
+  const toggle  = TOGGLEABLE.has(htype);
+  const sensor  = SENSOR_TYPES.has(htype);
+  const isOn    = toggle ? !!vals.On : false;
+
+  let stateHtml = '';
+  let extraHtml = '';
+
+  if (toggle) {
+    const brightness = vals.Brightness != null ? vals.Brightness : null;
+    stateHtml = `<span class="dev-state ${isOn ? 'on' : ''}">${isOn ? 'On' : 'Off'}</span>`;
+    if (brightness != null) {
+      extraHtml = `<div class="dev-bright"><div class="dev-bright-fill" style="width:${brightness}%"></div></div>`;
+    }
+  } else if (htype === 'Temperature Sensor') {
+    const t = vals.CurrentTemperature;
+    // Server returns Celsius; convert if user uses °F
+    let display = t != null ? t.toFixed(1) : '--';
+    stateHtml = `<div class="dev-value">${display}<span class="dev-unit">°C</span></div>`;
+  } else if (htype === 'Humidity Sensor') {
+    const h = vals.CurrentRelativeHumidity;
+    stateHtml = `<div class="dev-value">${h != null ? Math.round(h) : '--'}<span class="dev-unit">%</span></div>`;
+  } else if (htype === 'Motion Sensor') {
+    const m = vals.MotionDetected;
+    stateHtml = `<span class="dev-state ${m ? 'on' : ''}">${m ? 'Motion' : 'Clear'}</span>`;
+  } else if (htype === 'Speaker') {
+    stateHtml = `<span class="dev-state">${vals.Mute ? 'Muted' : 'Vol ' + (vals.Volume || 0)}</span>`;
+  } else if (htype === 'Battery') {
+    stateHtml = `<div class="dev-value">${vals.BatteryLevel != null ? vals.BatteryLevel : '--'}<span class="dev-unit">%</span></div>`;
+  } else if (htype === 'Outlet') {
+    stateHtml = `<span class="dev-state ${isOn ? 'on' : ''}">${isOn ? 'On' : 'Off'}</span>`;
+  } else if (htype === 'Occupancy Sensor') {
+    // Used for weather-station virtual sensors — show the name which embeds the value
+    stateHtml = `<span class="dev-state">${name}</span>`;
+  } else {
+    stateHtml = `<span class="dev-state">${JSON.stringify(vals).replace(/[{}"]/g,'').slice(0,30)}</span>`;
+  }
+
+  const toggleDiv = toggle ? `<div class="dev-toggle"></div>` : '';
+  const onclick   = toggle
+    ? `onclick="homeToggle('${uid}','On',${isOn ? 0 : 1})" `
+    : '';
+
+  return `<div class="dev-card ${isOn ? 'on' : ''} ${sensor && !toggle ? 'no-ctrl' : ''}" ${onclick}>
+    ${toggleDiv}
+    <div class="dev-icon">${icon}</div>
+    <div class="dev-name">${name}</div>
+    ${stateHtml}
+    ${extraHtml}
+  </div>`;
+}
+
+function overviewHtml(accessories) {
+  const lights  = accessories.filter(a => TOGGLEABLE.has(a.humanType));
+  const onCount = lights.filter(a => a.values && a.values.On).length;
+  const em      = _homeState.emporia;
+
+  let summaryCards = `
+    <div class="sum-card lights">
+      <div class="sum-title">Lights &amp; Switches</div>
+      <div class="sum-value">${onCount}</div>
+      <div class="sum-sub">of ${lights.length} on</div>
+    </div>`;
+
+  if (em && em.total_watts != null) {
+    summaryCards += `
+    <div class="sum-card energy">
+      <div class="sum-title">Power Usage</div>
+      <div class="sum-value">${em.total_watts < 1000 ? em.total_watts + 'W' : (em.total_watts/1000).toFixed(1) + 'kW'}</div>
+      <div class="sum-sub">whole home</div>
+    </div>`;
+  }
+
+  // Active devices (on) as quick-toggle strip
+  const active = lights.filter(a => a.values && a.values.On);
+  let activeHtml = '';
+  if (active.length) {
+    activeHtml = `<div style="margin-bottom:8px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)">Active</div>
+      <div class="device-grid">${active.map(a => devCard(a)).join('')}</div>`;
+  }
+
+  // Sensors summary
+  const sensors = accessories.filter(a => SENSOR_TYPES.has(a.humanType) && !a.humanType.includes('Motion'));
+  let sensorsHtml = '';
+  if (sensors.length) {
+    sensorsHtml = `<div style="margin-top:12px;margin-bottom:8px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)">Sensors</div>
+      <div class="device-grid">${sensors.map(a => devCard(a)).join('')}</div>`;
+  }
+
+  return `<div class="overview-grid">${summaryCards}</div>${activeHtml}${sensorsHtml}`;
+}
+
+function renderHome() {
+  const accessories = _homeState.accessories || [];
+  const hbOk = _homeState.hb_connected;
+  const homeEl = document.getElementById('home-content');
+  if (!homeEl) return;
+
+  // Not configured
+  if (!hbOk && !accessories.length) {
+    homeEl.innerHTML = `<div class="home-unconfigured">
+      <div style="font-size:40px">⌂</div>
+      <div style="font-size:16px;letter-spacing:2px;text-transform:uppercase">Home not connected</div>
+      <div style="font-size:13px">Configure Homebridge in <a href="/settings">Settings</a></div>
+    </div>`;
+    return;
+  }
+
+  // Build room tabs from _homeRooms
+  const tabsEl = document.getElementById('room-tabs');
+  if (tabsEl) {
+    const roomDefs = [{ id: 'overview', name: 'Overview' }, ..._homeRooms];
+    tabsEl.innerHTML = roomDefs.map(r =>
+      `<button class="room-tab ${_activeRoom === r.id ? 'active' : ''}" onclick="switchRoom('${r.id}')">${r.name}</button>`
+    ).join('');
+  }
+
+  // Render active room content
+  if (_activeRoom === 'overview') {
+    homeEl.innerHTML = overviewHtml(accessories);
+    return;
+  }
+
+  const room = _homeRooms.find(r => r.id === _activeRoom);
+  if (!room) { _activeRoom = 'overview'; renderHome(); return; }
+
+  const roomAccs = room.deviceIds
+    .map(uid => accessories.find(a => a.uniqueId === uid))
+    .filter(Boolean);
+
+  homeEl.innerHTML = roomAccs.length
+    ? `<div class="device-grid">${roomAccs.map(a => devCard(a)).join('')}</div>`
+    : `<div class="home-unconfigured"><div style="font-size:14px;letter-spacing:2px">No devices in this room</div></div>`;
+}
+
+function switchRoom(roomId) {
+  _activeRoom = roomId;
+  renderHome();
+}
+
+// Tap to toggle a device
+async function homeToggle(uniqueId, characteristicType, value) {
+  // Optimistic update in local state
+  const acc = (_homeState.accessories || []).find(a => a.uniqueId === uniqueId);
+  if (acc && acc.values) acc.values[characteristicType] = value;
+  renderHome();
+
+  try {
+    await fetch('/api/home/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uniqueId, characteristicType, value })
+    });
+  } catch(e) {}
+}
+
 // ── WebSocket + initial state load ───────────────────────────────────────
 const socket = io();
 socket.on('state_update', render);
+socket.on('home_state_update', function(data) {
+  _homeState = data;
+  if (currentTab === 'home') renderHome();
+});
 socket.on('system_updating', function(data) {
   document.getElementById('update-overlay').classList.add('active');
   document.getElementById('update-overlay-msg').textContent = data.message || 'Installing update — please wait…';
