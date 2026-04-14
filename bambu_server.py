@@ -452,6 +452,7 @@ def default_state(printer_cfg):
         "bed_temp":       0.0,
         "bed_target":     0.0,
         "chamber_temp":   0.0,
+        "chamber_target": 0.0,
         "fan_part":       0,
         "fan_aux":        0,
         "fan_chamber":    0,
@@ -1196,6 +1197,13 @@ def parse_print_message(state, msg):
     if 'bed_temper'           in p: state['bed_temp']        = round(float(p['bed_temper']), 1)
     if 'bed_target_temper'    in p: state['bed_target']      = round(float(p['bed_target_temper']), 1)
     if 'chamber_temper'       in p: state['chamber_temp']    = round(float(p['chamber_temper']), 1)
+    # H2D/H2C: chamber temp is in device.ctc.info.temp — packed as (target<<16)|current
+    try:
+        ctc_packed = int(p['device']['ctc']['info']['temp'])
+        state['chamber_temp']   = float(ctc_packed & 0xFFFF)
+        state['chamber_target'] = float((ctc_packed >> 16) & 0xFFFF)
+    except (KeyError, TypeError, ValueError):
+        pass
     if 'cooling_fan_speed'    in p: state['fan_part']        = round((int(p['cooling_fan_speed']) / 15) * 100)
     if 'big_fan1_speed'       in p: state['fan_aux']         = round((int(p['big_fan1_speed'])    / 15) * 100)
     if 'big_fan2_speed'       in p: state['fan_chamber']     = round((int(p['big_fan2_speed'])    / 15) * 100)

@@ -517,11 +517,12 @@ const FILAMENT_TYPE = {
   GFL99: 'PLA',      GFL96: 'PLA Silk',  GFL00: 'PLA',
   GFG99: 'PETG',     GFG00: 'PETG',      GFG02: 'PETG HF',
   GFA00: 'PLA Basic', GFA01: 'PLA Matte', GFA06: 'PLA Silk+',
-  GFH99: 'ASA',      GFB99: 'PA',        GFT99: 'TPU',
+  GFH99: 'ASA',      GFB99: 'ABS',       GFT99: 'TPU',
   GFC99: 'PC',       GFS99: 'PVA',
+  GFB00: 'ABS',
   // 3-char prefix fallbacks
   GFL: 'PLA',  GFG: 'PETG', GFA: 'PLA',  GFT: 'TPU',
-  GFB: 'PA',   GFC: 'PC',   GFS: 'PVA',  GFN: 'CF',
+  GFB: 'ABS',  GFC: 'PC',   GFS: 'PVA',  GFN: 'CF',
   GFH: 'ASA',  GFF: 'PA-CF', GFI: 'PAHT', GFJ: 'PC-CF',
 };
 function filamentShort(name, type) {
@@ -689,11 +690,12 @@ function panel(s, idx) {
 
   // Bar gauges for bed + chamber + speed
   const bedCol     = COLORS.bed?.arc || '#ff9944';
-  const chamberCol = '#aa66ff';
+  const chamberCol = COLORS.chamber?.arc || '#aa66ff';
   const speedCol   = '#00e878';
   const bedTemp    = Math.round(s.bed_temp || 0);
   const bedTgt     = Math.round(s.bed_target || 0);
   const chamberTemp = Math.round(s.chamber_temp || 0);
+  const chamberTgt  = Math.round(s.chamber_target || 0);
   const spdMag     = s.spd_mag || 100;
   const spdLvl     = s.spd_lvl || 2;
   const spdLabels  = { 1: 'Silent', 2: 'Standard', 3: 'Sport', 4: 'Ludicrous' };
@@ -837,7 +839,7 @@ function panel(s, idx) {
         <div class="gc">
           <div class="gc-lbl">Chamber</div>
           ${(() => {
-            const cFPct = Math.min(100, chamberTemp / 60 * 100).toFixed(1);
+            const cFPct = Math.min(100, chamberTemp / 70 * 100).toFixed(1);
             return `
           <div class="vg-outer">
             <div class="vg-bar">
@@ -845,7 +847,7 @@ function panel(s, idx) {
             </div>
           </div>
           <div class="vg-val">${chamberTemp}</div>
-          <div class="vg-sub">&deg;C</div>`;
+          <div class="vg-sub">${chamberTgt > 0 ? '&#9658;' + chamberTgt + '&deg;' : '&deg;C'}</div>`;
           })()}
         </div>
         <div class="gc">
