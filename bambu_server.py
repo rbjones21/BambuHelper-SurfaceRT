@@ -1554,16 +1554,12 @@ def _get_display_brightness():
     return max(10, min(254, int(display.get('brightness', 128))))
 
 def wake_screen(reason=None):
-    """Turn the display on immediately. Safe to call from any thread."""
+    """Turn the display on immediately via backlight. Safe to call from any thread.
+    Does NOT use xset DPMS — Tegra display controller hangs on DPMS resume."""
     global _screen_is_off
     try:
-        subprocess.run(['xset', '-display', ':0', 'dpms', 'force', 'on'],
-                       env=_DISPLAY_ENV, capture_output=True)
-        try:
-            with open(_BACKLIGHT_PATH, 'w') as f:
-                f.write(str(_get_display_brightness()))
-        except Exception:
-            pass
+        with open(_BACKLIGHT_PATH, 'w') as f:
+            f.write(str(_get_display_brightness()))
         if _screen_is_off:
             log.info("Display ON%s", f" ({reason})" if reason else "")
             _screen_is_off = False
@@ -1579,8 +1575,6 @@ def display_monitor():
 
     def screen_off():
         global _screen_is_off
-        subprocess.run(['xset', '-display', ':0', 'dpms', 'force', 'off'],
-                       env=_DISPLAY_ENV, capture_output=True)
         try:
             with open(_BACKLIGHT_PATH, 'w') as f:
                 f.write('0')
@@ -1590,7 +1584,11 @@ def display_monitor():
             log.info("Display OFF (timeout)")
             _screen_is_off = True
 
-    subprocess.run(['xset', '-display', ':0', '+dpms'], env=_DISPLAY_ENV, capture_output=True)
+    # Disable DPMS and screensaver entirely — Tegra display controller cannot
+    # reliably resume from DPMS off and may hang the GPU/system.
+    # Display blanking is handled exclusively via backlight brightness.
+    subprocess.run(['xset', '-display', ':0', '-dpms'], env=_DISPLAY_ENV, capture_output=True)
+    subprocess.run(['xset', '-display', ':0', 's', 'off'], env=_DISPLAY_ENV, capture_output=True)
     wake_screen("startup")
     all_done_since = None
 
