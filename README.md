@@ -1,4 +1,4 @@
-# BambuHelperRT — v1.7.9
+# BambuHelperRT — v1.7.10
 
 A Bambu Lab printer monitor dashboard running on a **Microsoft Surface RT** with Debian 12.
 Connects to one or two printers simultaneously via Bambu Cloud MQTT and displays live status
@@ -358,6 +358,11 @@ The web server binds to `0.0.0.0` (all interfaces) to support optional LAN acces
 ---
 
 ## Changelog
+
+### v1.7.10 — April 2026
+- **Touch-friendly display-timeout control** — the tiny number-input arrows on the Settings page have been replaced with a large `−` / value / `+` stepper. Tapping the value opens the existing on-screen keyboard in numeric mode so a full number can be typed.
+- **Generalised on-screen keyboard** — `openKeyboard(targetId, {numMode, onSave})` can now be wired to any input, not only the weather-location field.
+- **Bigger, colour weather on the dashboard** — current-condition row now shows a Twemoji colour icon plus larger, higher-contrast temperature/description text. The 5-day forecast cards are larger with colour Twemoji icons too.
 
 ### v1.7.9 — April 2026
 - **Allow tap-to-wake without PIN** — added `/api/display/wake` to `_OPEN_PATHS` so it is reachable even when LAN PIN protection or local PIN is enabled. Waking the screen is harmless and gating it defeated the v1.7.8 feature on PIN-protected devices.

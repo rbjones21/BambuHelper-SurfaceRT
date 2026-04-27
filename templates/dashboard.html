@@ -258,27 +258,28 @@
   .idle-time   { font-family: 'Share Tech Mono', monospace; font-size: clamp(80px, 15vw, 140px); font-weight: 700; color: var(--text); letter-spacing: 4px; line-height: 1; }
   .idle-date   { font-family: 'Rajdhani', sans-serif; font-size: clamp(24px, 4vw, 42px); font-weight: 500; color: var(--muted); letter-spacing: 4px; text-transform: uppercase; }
   .idle-status { font-size: 14px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); opacity: 0.5; margin-top: 8px; }
-  #idle-weather { display:flex; align-items:baseline; gap:18px; margin-top:4px; flex-wrap:wrap; justify-content:center; }
-  .wx-temp  { font-family:'Rajdhani',sans-serif; font-size:clamp(36px,6vw,64px); font-weight:700; color:var(--text); line-height:1; }
-  .wx-desc  { font-size:clamp(13px,2vw,18px); color:var(--muted); letter-spacing:2px; text-transform:uppercase; }
-  .wx-range { font-size:13px; color:var(--muted); opacity:0.6; letter-spacing:1px; }
+  #idle-weather { display:flex; align-items:center; gap:24px; margin-top:10px; flex-wrap:wrap; justify-content:center; }
+  .wx-icon-img  { width:clamp(64px,9vw,96px); height:clamp(64px,9vw,96px); flex:none; }
+  .wx-temp  { font-family:'Rajdhani',sans-serif; font-size:clamp(56px,9vw,96px); font-weight:700; color:var(--text); line-height:1; }
+  .wx-desc  { font-size:clamp(18px,2.6vw,26px); font-weight:600; color:var(--text); letter-spacing:2px; text-transform:uppercase; }
+  .wx-range { font-family:'Share Tech Mono',monospace; font-size:clamp(15px,1.8vw,18px); color:var(--muted); opacity:0.85; letter-spacing:1px; margin-top:4px; }
 
   /* ── 5-day forecast strip ── */
-  #idle-forecast { display:none; margin-top:16px; gap:8px; justify-content:center; flex-wrap:wrap; }
+  #idle-forecast { display:none; margin-top:22px; gap:10px; justify-content:center; flex-wrap:wrap; }
   #idle-forecast.active { display:flex; }
   .fc-day {
-    display:flex; flex-direction:column; align-items:center; gap:3px;
-    background:var(--panel); border:1px solid var(--bdr); border-radius:8px;
-    padding:10px 14px; min-width:100px; transition:border-color 0.3s;
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    background:var(--panel); border:1px solid var(--bdr); border-radius:10px;
+    padding:14px 18px; min-width:120px; transition:border-color 0.3s;
   }
   .fc-day:first-child { border-color:var(--muted); }
-  .fc-day-name { font-family:'Rajdhani',sans-serif; font-size:13px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:var(--muted); }
+  .fc-day-name { font-family:'Rajdhani',sans-serif; font-size:15px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:var(--muted); }
   .fc-day:first-child .fc-day-name { color:var(--text); }
-  .fc-icon   { font-size:28px; line-height:1; }
-  .fc-temps  { font-family:'Share Tech Mono',monospace; font-size:14px; color:var(--text); letter-spacing:1px; white-space:nowrap; }
-  .fc-lo     { color:var(--muted); opacity:0.6; }
-  .fc-desc   { font-size:10px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; max-width:110px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .fc-precip { font-size:10px; color:#5588cc; letter-spacing:0.5px; }
+  .fc-icon-img { width:48px; height:48px; }
+  .fc-temps  { font-family:'Share Tech Mono',monospace; font-size:17px; font-weight:600; color:var(--text); letter-spacing:1px; white-space:nowrap; }
+  .fc-lo     { color:var(--muted); opacity:0.7; }
+  .fc-desc   { font-size:11px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; max-width:130px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .fc-precip { font-size:11px; color:#5588cc; letter-spacing:0.5px; font-weight:600; }
 
   /* ── Offline overlay ── */
   .offline     { position: absolute; inset: 0; background: rgba(10,12,15,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; border-radius: 8px; z-index: 9; }
@@ -349,6 +350,7 @@
     <div class="idle-date" id="idle-date-display">---</div>
     <div class="idle-status">No active prints</div>
     <div id="idle-weather" style="display:none">
+      <img class="wx-icon-img" id="wx-icon" alt="" style="display:none">
       <span class="wx-temp" id="wx-temp"></span>
       <div>
         <div class="wx-desc" id="wx-desc"></div>
@@ -1040,13 +1042,37 @@ setInterval(tickIdleClock, 1000);
 tickIdleClock();
 
 // ── Weather display ───────────────────────────────────────────────────────
-async function updateWeather() {
-  try {
-    const w = await fetch('/api/weather').then(r => r.json());
-    const el = document.getElementById('idle-weather');
-    const fcEl = document.getElementById('idle-forecast');
-    if (!w || !w.temp) { el.style.display = 'none'; fcEl.classList.remove('active'); return; }
-    document.getElementById('wx-temp').textContent  = `${w.temp}\u00b0${w.unit}`;
+// Twemoji renders emoji as colour PNGs that look identical on every device,
+// instead of relying on whatever emoji font the kiosk happens to have.
+function twemojiUrl(emoji) {
+  if (!emoji) return '';
+  const cps = [];
+  for (const ch of emoji) {
+    const cp = ch.codePointAt(0).toString(16);
+    if (cp !== 'fe0f') cps.push(cp);  // strip variation selectors (Twemoji convention)
+  }
+  if (!cps.length) return '';
+  returCurrent-condition icon — wttr.in doesn't return a code, so reuse today's
+    // forecast WMO icon (forecast[0] = today).
+    const iconEl = document.getElementById('wx-icon');
+    const todayIcon = (w.forecast && w.forecast[0] && w.forecast[0].icon) || '';
+    const iconUrl   = twemojiUrl(todayIcon);
+    if (iconUrl) { iconEl.src = iconUrl; iconEl.style.display = 'block'; }
+    else         { iconEl.style.display = 'none'; }
+    // 5-day forecast
+    if (w.forecast && w.forecast.length) {
+      const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      fcEl.innerHTML = w.forecast.map((d, i) => {
+        const dt = new Date(d.date + 'T12:00:00');
+        const name = i === 0 ? 'Today' : days[dt.getDay()];
+        const precip = d.precip != null && d.precip > 0 ? `<div class="fc-precip">${d.precip}% rain</div>` : '';
+        const fcIconUrl = twemojiUrl(d.icon);
+        const iconHtml  = fcIconUrl
+          ? `<img class="fc-icon-img" src="${fcIconUrl}" alt="">`
+          : `<div class="fc-icon-img" style="display:flex;align-items:center;justify-content:center;font-size:32px">${d.icon || ''}</div>`;
+        return `<div class="fc-day">
+          <div class="fc-day-name">${name}</div>
+          ${iconHtml}tent  = `${w.temp}\u00b0${w.unit}`;
     document.getElementById('wx-desc').textContent  = w.desc;
     document.getElementById('wx-range').textContent = `H:${w.high}\u00b0  L:${w.low}\u00b0  Humidity:${w.humidity}%`;
     el.style.display = 'flex';

@@ -272,6 +272,14 @@
   #toast.success { border-color: var(--green); color: var(--green); }
   #toast.error   { border-color: var(--red);   color: var(--red); }
 
+  /* ── Touch-friendly numeric stepper ── */
+  .stepper        { display: flex; align-items: stretch; gap: 8px; max-width: 320px; }
+  .step-btn       { width: 64px; height: 64px; font-size: 34px; font-weight: 700; line-height: 1; background: #2a3040; border: 1px solid #3d4560; border-radius: 12px; color: var(--text); cursor: pointer; touch-action: manipulation; user-select: none; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .step-btn:active{ background: #3a4050; }
+  .step-val       { flex: 1; min-width: 90px; display: flex; align-items: center; justify-content: center; font-family: 'Share Tech Mono', monospace; font-size: 32px; font-weight: 700; background: var(--input-bg); border: 1px solid var(--border); border-radius: 12px; color: var(--text); cursor: pointer; touch-action: manipulation; user-select: none; }
+  .step-val:active{ background: rgba(255,255,255,0.05); }
+  .step-unit      { display: flex; align-items: center; color: var(--muted); font-size: 13px; padding: 0 4px; letter-spacing: 1px; text-transform: uppercase; }
+
   /* ── Update overlay (matches dashboard) ── */
   #update-overlay {
     display: none; position: fixed; inset: 0; z-index: 9999;
@@ -437,7 +445,13 @@
       </div>
       <div class="field">
         <label>Display off after print complete (minutes, 0 = never)</label>
-        <input type="number" id="d-timeout" value="3" min="0" max="60">
+        <div class="stepper">
+          <button type="button" class="step-btn" onclick="stepTimeout(-1)" aria-label="Decrease">&minus;</button>
+          <div class="step-val" id="d-timeout-display" onclick="openKeyboard('d-timeout', {numMode:true, onSave: syncTimeoutDisplay})">3</div>
+          <button type="button" class="step-btn" onclick="stepTimeout(1)" aria-label="Increase">+</button>
+          <span class="step-unit">min</span>
+          <input type="hidden" id="d-timeout" value="3">
+        </div>
       </div>
       <label class="check-row"><input type="checkbox" id="d-always-on"><span>Keep display always on (override timeout)</span></label>
       <label class="check-row"><input type="checkbox" id="d-clock" checked><span>Show idle clock before screen off (uncheck to turn off immediately)</span></label>
@@ -859,6 +873,7 @@ function loadDisplaySettings(cfg) {
   document.getElementById('d-bright').value         = d.brightness  || 200;
   document.getElementById('d-bval').textContent     = d.brightness  || 200;
   document.getElementById('d-timeout').value        = d.timeout !== undefined ? d.timeout : 3;
+  syncTimeoutDisplay(document.getElementById('d-timeout').value);
   document.getElementById('d-always-on').checked    = d.always_on   || false;
   document.getElementById('d-clock').checked        = d.show_clock  !== false;
   document.getElementById('d-time-format').value    = d.time_format || '12h';
@@ -1188,6 +1203,7 @@ let _kbdValue = '';
 let _kbdUpper = false;
 let _kbdNumMode = false;
 let _kbdCallback = null;
+let _kbdTarget = null;
 
 function _buildKbdRows() {
   const rows = _kbdNumMode ? KBD_NUM : KBD_ALPHA;
@@ -1201,11 +1217,24 @@ function _buildKbdRows() {
   ).join('');
 }
 
-function openKeyboard(callback) {
-  _kbdCallback = callback || null;
-  _kbdValue    = document.getElementById('wx-location').value || '';
+// openKeyboard(targetIdOrEl, opts) — opts: { numMode:bool, onSave:fn(value) }
+// With no arguments, defaults to the weather-location field for backward compat.
+function openKeyboard(target, opts) {
+  opts = opts || {};
+  if (!target) {
+    target = document.getElementById('wx-location');
+    if (!opts.onSave) opts.onSave = function(v) {
+      const disp = document.getElementById('wx-location-display');
+      if (disp) { disp.textContent = v; disp.style.color = v ? 'var(--text)' : 'var(--muted)'; }
+    };
+  } else if (typeof target === 'string') {
+    target = document.getElementById(target);
+  }
+  _kbdTarget   = target;
+  _kbdCallback = opts.onSave || null;
+  _kbdValue    = (target && target.value) ? String(target.value) : '';
   _kbdUpper    = false;
-  _kbdNumMode  = false;
+  _kbdNumMode  = !!opts.numMode;
   document.getElementById('kbd-display').textContent = _kbdValue || '';
   _buildKbdRows();
   document.getElementById('kbd-overlay').style.display = 'flex';
@@ -1230,10 +1259,16 @@ function kbdKey(k) {
   if (k === 'back') {
     _kbdValue = _kbdValue.slice(0, -1);
   } else if (k === 'ok') {
-    document.getElementById('wx-location').value = _kbdValue;
-    const disp = document.getElementById('wx-location-display');
-    disp.textContent = _kbdValue;
-    disp.style.color = _kbdValue ? 'var(--text)' : 'var(--muted)';
+    if (_kbdTarget) {
+      _kbdTarget.value = _kbdValue;
+      try {
+        _kbdTarget.dispatchEvent(new Event('input',  {bubbles:true}));
+        _kbdTarget.dispatchEvent(new Event('change', {bubbles:true}));
+      } catch(_) {}
+    }
+    if (typeof _kbdCallback === 'function') {
+      try { _kbdCallback(_kbdValue); } catch(_) {}
+    }
     closeKeyboard();
     return;
   } else if (k === ' ') {
@@ -1242,6 +1277,25 @@ function kbdKey(k) {
     _kbdValue += (!_kbdNumMode && _kbdUpper) ? k.toUpperCase() : k;
   }
   document.getElementById('kbd-display').textContent = _kbdValue || '';
+}
+
+// ── Numeric stepper for display timeout ────────────────────────────────────
+function stepTimeout(delta) {
+  const inp = document.getElementById('d-timeout');
+  let v = parseInt(inp.value, 10);
+  if (isNaN(v)) v = 0;
+  v = Math.max(0, Math.min(60, v + delta));
+  inp.value = v;
+  const disp = document.getElementById('d-timeout-display');
+  if (disp) disp.textContent = v;
+}
+function syncTimeoutDisplay(v) {
+  let n = parseInt(v, 10);
+  if (isNaN(n)) n = 0;
+  n = Math.max(0, Math.min(60, n));
+  document.getElementById('d-timeout').value = n;
+  const disp = document.getElementById('d-timeout-display');
+  if (disp) disp.textContent = n;
 }
 
 // ── Weather settings ───────────────────────────────────────────────────────
