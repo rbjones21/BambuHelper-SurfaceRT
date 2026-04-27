@@ -1,4 +1,4 @@
-# BambuHelperRT — v1.7.2
+# BambuHelperRT — v1.7.3
 
 A Bambu Lab printer monitor dashboard running on a **Microsoft Surface RT** with Debian 12.
 Connects to one or two printers simultaneously via Bambu Cloud MQTT and displays live status
@@ -358,6 +358,9 @@ The web server binds to `0.0.0.0` (all interfaces) to support optional LAN acces
 ---
 
 ## Changelog
+
+### v1.7.3 — April 2026
+- **Fix kiosk crash-loop after Chromium 147 upgrade** — Chromium 147 refuses to run as root without `--no-sandbox` (`Running as root without --no-sandbox is not supported`), causing `bambuhelper-kiosk.service` to exit 1 on every restart. Added `--no-sandbox` to the kiosk launch command. The kiosk already runs as root in a single-user appliance context, so the sandbox provides no meaningful security boundary here.
 
 ### v1.7.2 — April 2026
 - **Fix kiosk failing to start after v1.7.1** — `bambuhelper-noblank.service` was claiming `/dev/tty1` (`StandardInput=tty` + `TTYPath=`), which raced with LightDM/the kiosk for ownership of tty1 and prevented the dashboard browser from launching on boot. The service now redirects setterm output to `/dev/tty1` without owning the TTY.

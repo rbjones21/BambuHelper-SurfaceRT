@@ -12,6 +12,7 @@ Environment=XAUTHORITY=/root/.Xauthority
 ExecStartPre=/bin/sleep 5
 ExecStart=/usr/bin/chromium \
   --kiosk \
+  --no-sandbox \
   --noerrdialogs \
   --disable-infobars \
   --no-first-run \
