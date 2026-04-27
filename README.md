@@ -1,4 +1,4 @@
-# BambuHelperRT — v1.7.6
+# BambuHelperRT — v1.7.7
 
 A Bambu Lab printer monitor dashboard running on a **Microsoft Surface RT** with Debian 12.
 Connects to one or two printers simultaneously via Bambu Cloud MQTT and displays live status
@@ -358,6 +358,10 @@ The web server binds to `0.0.0.0` (all interfaces) to support optional LAN acces
 ---
 
 ## Changelog
+
+### v1.7.7 — April 2026
+- **Better update UX** — the Settings page now shows the same full-screen “Updating” overlay with spinner that the dashboard uses, instead of a tiny status line. Overlay text progresses through `Downloading update…` → `Restarting server…` → `Reloading…` so the user can see what's happening.
+- **Post-reload success toast** — after the page comes back, a green toast confirms the result: `Updated to v1.7.7 (was v1.7.6)` or `Reinstalled v1.7.7`. The previous version is stashed in `sessionStorage` before the request fires.
 
 ### v1.7.6 — April 2026
 - **Fix dashboard not auto-reloading after OTA update** — the post-update poll reloaded as soon as `/api/version` responded, but the server stays alive for ~5–10 s while `bambu-update` downloads files, so the poll succeeded against the *old* server and reloaded the page before the actual restart, leaving the dashboard showing the previous version. Reworked both `dashboard.html` and `settings.html` polls to first wait for the server to go DOWN (proves the restart fired), then wait for it to come back UP, with a 120 s safety timeout.

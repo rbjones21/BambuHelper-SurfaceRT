@@ -271,9 +271,25 @@
   #toast.show    { transform: translateX(-50%) translateY(0); }
   #toast.success { border-color: var(--green); color: var(--green); }
   #toast.error   { border-color: var(--red);   color: var(--red); }
+
+  /* ── Update overlay (matches dashboard) ── */
+  #update-overlay {
+    display: none; position: fixed; inset: 0; z-index: 9999;
+    background: var(--bg); flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  }
+  #update-overlay.active { display: flex; }
+  .update-spinner { width: 48px; height: 48px; border: 4px solid var(--muted); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .update-title { font-size: 28px; font-weight: 700; letter-spacing: 4px; text-transform: uppercase; color: var(--accent); }
+  .update-msg   { font-size: 14px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; text-align: center; padding: 0 16px; }
 </style>
 </head>
 <body>
+<div id="update-overlay">
+  <div class="update-spinner"></div>
+  <div class="update-title">Updating</div>
+  <div class="update-msg" id="update-overlay-msg">Installing update — please wait…</div>
+</div>
 <!-- PIN numpad overlay -->
 <div id="pin-pad-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9000;align-items:center;justify-content:center" onclick="if(event.target===this)closePinPad()">
   <div style="background:var(--track);border:1px solid var(--border);border-radius:14px;padding:24px;width:260px;text-align:center">
@@ -1508,48 +1524,82 @@ async function doUpdate(reinstall) {
   if (!confirm(msg)) return;
   document.getElementById('btn-do-update').disabled = true;
   document.getElementById('btn-reinstall').disabled = true;
-  document.getElementById('update-status').innerHTML =
-    '<span style="color:var(--accent)">&#9881; Updating… server will restart and this page will reload automatically.</span>';
 
   // Capture the version we started with so we can detect a real restart.
   const startVersion = document.getElementById('ver-local').textContent.trim();
   const startTime    = Date.now();
   let sawDown        = false;
+  let phase          = 'downloading';
+
+  // Show full-screen overlay so the user has clear feedback.
+  const overlay = document.getElementById('update-overlay');
+  const ovMsg   = document.getElementById('update-overlay-msg');
+  overlay.classList.add('active');
+  ovMsg.textContent = 'Downloading update…';
+
+  // Remember the starting version so the post-reload page can show success.
+  try { sessionStorage.setItem('bh_update_from', startVersion); } catch(e) {}
 
   try {
     await fetch('/api/update', { method: 'POST' });
   } catch(e) {}
 
-  // Robust poll:
-  //   1. Wait for the server to go DOWN (proves the restart actually happened).
-  //   2. Then wait for it to come back UP and reload.
-  //   3. Hard timeout at 120 s — reload anyway so the user isn't stuck.
   const poll = setInterval(async () => {
     if (Date.now() - startTime > 120000) {
+      // Hard timeout — reload anyway so the user isn't stuck.
       clearInterval(poll);
       location.reload(true);
       return;
     }
     try {
       const r = await fetch('/api/version', {cache:'no-store'});
-      if (!r.ok) { sawDown = true; return; }
-      if (sawDown) { clearInterval(poll); location.reload(true); return; }
-      // Server is still up — if version already changed, reload.
+      if (!r.ok) {
+        sawDown = true;
+        if (phase !== 'restarting') { phase = 'restarting'; ovMsg.textContent = 'Restarting server…'; }
+        return;
+      }
+      if (sawDown) {
+        ovMsg.textContent = 'Reloading…';
+        clearInterval(poll);
+        location.reload(true);
+        return;
+      }
+      // Server is still up — if version already changed (fast restart), reload.
       const v = await r.json();
       if (v && v.local && v.local !== startVersion) {
+        ovMsg.textContent = 'Reloading…';
         clearInterval(poll);
         location.reload(true);
       }
     } catch(e) {
-      // Network error == server is down mid-restart.
       sawDown = true;
+      if (phase !== 'restarting') { phase = 'restarting'; ovMsg.textContent = 'Restarting server…'; }
     }
   }, 2000);
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────
+async function checkUpdateSuccess() {
+  // After reload, if we recorded a starting version and it changed, show toast.
+  let from = null;
+  try { from = sessionStorage.getItem('bh_update_from'); } catch(e) {}
+  if (!from) return;
+  try { sessionStorage.removeItem('bh_update_from'); } catch(e) {}
+  const local = (document.getElementById('ver-local').textContent || '').trim();
+  if (!local || local === '…') {
+    // Version not loaded yet — retry shortly.
+    setTimeout(checkUpdateSuccess, 500);
+    return;
+  }
+  if (local === from) {
+    showToast('Reinstalled v' + local, 'success');
+  } else {
+    showToast('Updated to v' + local + ' (was v' + from + ')', 'success');
+  }
+}
+
 init();
-loadVersionInfo();
+loadVersionInfo().then(checkUpdateSuccess);
 openHashCard();
 </script>
 </body>
