@@ -1548,6 +1548,13 @@ _XAUTHORITY     = _find_xauthority()
 _DISPLAY_ENV    = {**os.environ, 'DISPLAY': ':0', 'XAUTHORITY': _XAUTHORITY}
 _BACKLIGHT_PATH = '/sys/class/backlight/backlight/brightness'
 _screen_is_off  = False
+# Watchdog: track last successful backlight write and last wake_screen call.
+# If the device "sleeps" again, journalctl -u bambuhelper will reveal whether
+# the dashboard ever asked it to wake (kernel-side hang) or never tried
+# (logic bug above this layer).
+_last_backlight_write_ts = 0.0
+_last_wake_call_ts       = 0.0
+_last_wake_reason        = None
 
 def _get_display_brightness():
     display = CONFIG.get('display', {})
@@ -1556,15 +1563,21 @@ def _get_display_brightness():
 def wake_screen(reason=None):
     """Turn the display on immediately via backlight. Safe to call from any thread.
     Does NOT use xset DPMS — Tegra display controller hangs on DPMS resume."""
-    global _screen_is_off
+    global _screen_is_off, _last_backlight_write_ts, _last_wake_call_ts, _last_wake_reason
+    _last_wake_call_ts = time.time()
+    _last_wake_reason  = reason
     try:
+        target = str(_get_display_brightness())
         with open(_BACKLIGHT_PATH, 'w') as f:
-            f.write(str(_get_display_brightness()))
+            f.write(target)
+        _last_backlight_write_ts = time.time()
         if _screen_is_off:
-            log.info("Display ON%s", f" ({reason})" if reason else "")
+            log.info("Display ON%s (brightness=%s)", f" ({reason})" if reason else "", target)
             _screen_is_off = False
     except Exception as e:
-        log.debug(f"wake_screen failed: {e}")
+        # Promote to warning — silent failure is what made the previous bugs
+        # invisible until the user had to hard-reset the device.
+        log.warning("wake_screen failed (reason=%s): %s", reason, e)
 
 # ---------------------------------------------------------------------------
 # Display timeout monitor
@@ -1574,12 +1587,13 @@ def display_monitor():
     log.info(f"Display monitor started (XAUTHORITY={_XAUTHORITY})")
 
     def screen_off():
-        global _screen_is_off
+        global _screen_is_off, _last_backlight_write_ts
         try:
             with open(_BACKLIGHT_PATH, 'w') as f:
                 f.write('0')
-        except Exception:
-            pass
+            _last_backlight_write_ts = time.time()
+        except Exception as e:
+            log.warning("screen_off backlight write failed: %s", e)
         if not _screen_is_off:
             log.info("Display OFF (timeout)")
             _screen_is_off = True
@@ -1590,11 +1604,26 @@ def display_monitor():
     subprocess.run(['xset', '-display', ':0', '-dpms'], env=_DISPLAY_ENV, capture_output=True)
     subprocess.run(['xset', '-display', ':0', 's', 'off'], env=_DISPLAY_ENV, capture_output=True)
     wake_screen("startup")
-    all_done_since = None
+    all_done_since   = None
+    last_heartbeat   = 0.0
 
     while True:
         time.sleep(10)
         try:
+            # Heartbeat every 5 minutes — if the device hangs we want a clear
+            # "last known good" timestamp in the journal showing whether the
+            # monitor loop was still running and what it last did.
+            now = time.time()
+            if now - last_heartbeat >= 300:
+                last_heartbeat = now
+                age_write = now - _last_backlight_write_ts if _last_backlight_write_ts else -1
+                age_wake  = now - _last_wake_call_ts       if _last_wake_call_ts       else -1
+                log.info(
+                    "Display heartbeat: screen_off=%s last_backlight_write=%.0fs ago "
+                    "last_wake_call=%.0fs ago last_wake_reason=%s",
+                    _screen_is_off, age_write, age_wake, _last_wake_reason,
+                )
+
             display     = CONFIG.get('display', {})
             always_on   = display.get('always_on', False)
             timeout_min = int(display.get('timeout', 3))

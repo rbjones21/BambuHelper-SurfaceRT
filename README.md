@@ -1,4 +1,4 @@
-# BambuHelperRT — v1.6.0
+# BambuHelperRT — v1.7.1
 
 A Bambu Lab printer monitor dashboard running on a **Microsoft Surface RT** with Debian 12.
 Connects to one or two printers simultaneously via Bambu Cloud MQTT and displays live status
@@ -358,6 +358,26 @@ The web server binds to `0.0.0.0` (all interfaces) to support optional LAN acces
 ---
 
 ## Changelog
+
+### v1.7.1 — April 2026
+- **Sleep/wake hardening (installer)** — `install.sh` now masks `sleep.target`, `suspend.target`, `hibernate.target`, and `hybrid-sleep.target`; drops a `logind.conf.d` snippet that ignores lid switch, power key, and idle action; installs a `bambuhelper-noblank.service` oneshot that runs `setterm --blank 0 --powerdown 0 --powersave off` against `/dev/tty1` to disable the kernel framebuffer console blanker; and adds a udev rule pinning `power/control=on` for `backlight`, `drm`, and `graphics` devices so the kernel never autosuspends the display controller. Re-run `sudo bash install.sh` after updating to apply these.
+- **Display watchdog logging** — `wake_screen()` now records a timestamp on every call (success or failure) and logs failures at warning level instead of debug. `display_monitor()` emits a heartbeat every 5 minutes showing screen state, time since last backlight write, time since last wake call, and last wake reason — so the next time the device hangs, `journalctl -u bambuhelper` will show whether the dashboard tried to wake it (kernel-side hang) or never tried (logic bug).
+
+### v1.7.0 — April 2026
+- **DPMS removed entirely** — Tegra 3 display controller hangs on DPMS resume and forces a hard reset. `wake_screen()` and `screen_off()` now use the backlight (`/sys/class/backlight/backlight/brightness`) only. Display monitor startup runs `xset -dpms` and `xset s off` to prevent X from ever triggering DPMS automatically.
+
+### v1.6.4 — April 2026
+- **XAUTHORITY auto-discovery** — auto-detect the LightDM root cookie at `/var/run/lightdm/root/:0` instead of relying on `~/.Xauthority`, so display control commands actually run as the right user. Path is logged at startup.
+
+### v1.6.3 — April 2026
+- **Instant screen wake on print events** — `wake_screen()` extracted to a module-level helper callable from any thread; the MQTT handler now wakes the display the moment a print transitions to RUNNING or a new error appears. Display monitor poll reduced from 30 s to 10 s as a fallback.
+- **H2D chamber temp / filament type / chamber theme color** fixes.
+- **5-day forecast** added to the idle clock screen, plus security hardening on input validation.
+
+### v1.6.2 / v1.6.1 — April 2026
+- **Display timeout via backlight** — switched screen on/off from `xset dpms` to writing the backlight brightness directly. DPMS proved unreliable on the Surface RT.
+- Fixed `DISPLAY_ENV` clobbering the entire process environment (PATH was being lost). Added transition logging for display on/off events.
+- Misc HMS dismiss persistence and lookup-table fixes.
 
 ### v1.6.0 — April 2026
 - **Update notification bar** — blue banner on the dashboard when a new version is available; links directly to Settings → About for one-tap update

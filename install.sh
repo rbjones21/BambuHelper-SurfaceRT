@@ -63,7 +63,8 @@ systemctl daemon-reload
 systemctl enable bambuhelper.service
 systemctl enable bambuhelper-kiosk.service
 
-echo "[6/6] Disabling screen blanking..."
+echo "[6/6] Disabling screen blanking and power management..."
+# --- X11 blanking off -------------------------------------------------------
 mkdir -p /etc/X11/xorg.conf.d
 cat > /etc/X11/xorg.conf.d/10-blanking.conf << 'EOF'
 Section "ServerFlags"
@@ -84,6 +85,66 @@ Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
 EOF
+
+# --- systemd: never suspend / hibernate -------------------------------------
+# Tegra 3 cannot reliably resume from ACPI suspend or DPMS, so we mask every
+# sleep target. Without this a default Debian install will eventually try to
+# suspend the device and require a hard reset to recover.
+systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target \
+    >/dev/null 2>&1 || true
+
+# --- logind: ignore lid / power key / idle ----------------------------------
+mkdir -p /etc/systemd/logind.conf.d
+cat > /etc/systemd/logind.conf.d/10-bambuhelper-nosleep.conf << 'EOF'
+[Login]
+HandleLidSwitch=ignore
+HandleLidSwitchDocked=ignore
+HandleLidSwitchExternalPower=ignore
+HandlePowerKey=ignore
+HandleSuspendKey=ignore
+HandleHibernateKey=ignore
+IdleAction=ignore
+IdleActionSec=0
+EOF
+
+# --- kernel console blanker off ---------------------------------------------
+# fbcon blanks the framebuffer after ~10 minutes independently of X. On Tegra
+# this routes through the same display-controller power path that hangs the
+# GPU. setterm has to be run against an actual tty, so we do it in a oneshot
+# unit at boot.
+cat > /etc/systemd/system/bambuhelper-noblank.service << 'EOF'
+[Unit]
+Description=BambuHelper - disable kernel console blanking
+After=systemd-user-sessions.service
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+StandardInput=tty
+StandardOutput=tty
+TTYPath=/dev/tty1
+ExecStart=/bin/setterm --blank 0 --powerdown 0 --powersave off
+# Belt-and-braces: also write the sysfs knobs the kernel exposes
+ExecStart=/bin/sh -c 'echo 0 > /sys/module/kernel/parameters/consoleblank 2>/dev/null || true'
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl enable bambuhelper-noblank.service >/dev/null 2>&1 || true
+
+# --- Pin DRM + backlight runtime PM to "on" ---------------------------------
+# The kernel may autosuspend the display controller / backlight device. On
+# Tegra 3 that is the same hang risk as DPMS. udev rules force runtime PM off
+# for those devices at boot and on hotplug.
+cat > /etc/udev/rules.d/99-bambuhelper-nopm.rules << 'EOF'
+# Force display-related devices to stay powered
+SUBSYSTEM=="backlight", ATTR{power/control}="on"
+SUBSYSTEM=="drm",       ATTR{power/control}="on"
+SUBSYSTEM=="graphics",  ATTR{power/control}="on"
+EOF
+
+systemctl daemon-reload
 
 echo ""
 echo "╔═══════════════════════════════════════════════════════════╗"
