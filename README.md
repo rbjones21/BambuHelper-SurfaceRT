@@ -1,4 +1,4 @@
-# BambuHelperRT — v1.7.7
+# BambuHelperRT — v1.7.8
 
 A Bambu Lab printer monitor dashboard running on a **Microsoft Surface RT** with Debian 12.
 Connects to one or two printers simultaneously via Bambu Cloud MQTT and displays live status
@@ -358,6 +358,9 @@ The web server binds to `0.0.0.0` (all interfaces) to support optional LAN acces
 ---
 
 ## Changelog
+
+### v1.7.8 — April 2026
+- **Tap-to-wake** — touching the screen (or pressing any key) now wakes the backlight and resets the display idle timer for one full timeout window, so the user can read the idle clock / weather without having to wait for a print event. Implemented as a new `/api/display/wake` endpoint plus a throttled (5 s) `touchstart` / `mousedown` / `keydown` listener on both the dashboard and settings pages. `display_monitor` honours `_user_activity_ts` the same way it honours an active print.
 
 ### v1.7.7 — April 2026
 - **Better update UX** — the Settings page now shows the same full-screen “Updating” overlay with spinner that the dashboard uses, instead of a tiny status line. Overlay text progresses through `Downloading update…` → `Restarting server…` → `Reloading…` so the user can see what's happening.

@@ -1143,6 +1143,23 @@ socket.on('system_updating', function(data) {
   }, 2000);
 });
 fetch('/api/state').then(r => r.json()).then(render).catch(() => {});
+
+// ── Tap-to-wake ────────────────────────────────────────────────────────────
+// Any touch / click / key wakes the backlight and resets the idle timer.
+// Throttled to one POST every 5 s so a flurry of taps doesn't spam the server.
+(function(){
+  var last = 0;
+  function ping() {
+    var now = Date.now();
+    if (now - last < 5000) return;
+    last = now;
+    fetch('/api/display/wake', {method:'POST'}).catch(function(){});
+  }
+  // Use capture phase so taps on overlays / buttons still register.
+  ['touchstart','mousedown','keydown'].forEach(function(ev){
+    window.addEventListener(ev, ping, {capture:true, passive:true});
+  });
+})();
 </script>
 </body>
 </html>

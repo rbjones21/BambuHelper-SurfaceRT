@@ -1601,6 +1601,20 @@ async function checkUpdateSuccess() {
 init();
 loadVersionInfo().then(checkUpdateSuccess);
 openHashCard();
+
+// ── Tap-to-wake (mirror of dashboard) ──────────────────────────────────────
+(function(){
+  var last = 0;
+  function ping() {
+    var now = Date.now();
+    if (now - last < 5000) return;
+    last = now;
+    fetch('/api/display/wake', {method:'POST'}).catch(function(){});
+  }
+  ['touchstart','mousedown','keydown'].forEach(function(ev){
+    window.addEventListener(ev, ping, {capture:true, passive:true});
+  });
+})();
 </script>
 </body>
 </html>

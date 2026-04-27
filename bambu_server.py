@@ -940,6 +940,17 @@ def api_display_brightness():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
+@app.route('/api/display/wake', methods=['POST'])
+def api_display_wake():
+    """Tap-to-wake: turn the screen on and reset the idle timeout.
+    Called by the dashboard / settings page on any touch or key event so the
+    user can wake the panel and read the clock without having to walk over to
+    the printer to trigger a print event."""
+    global _user_activity_ts
+    _user_activity_ts = time.time()
+    wake_screen("user tap")
+    return jsonify({"ok": True})
+
 # ---------------------------------------------------------------------------
 # API — Printer controls
 # ---------------------------------------------------------------------------
@@ -1555,6 +1566,10 @@ _screen_is_off  = False
 _last_backlight_write_ts = 0.0
 _last_wake_call_ts       = 0.0
 _last_wake_reason        = None
+# User activity timestamp — updated by /api/display/wake (tap-to-wake from the
+# dashboard or settings page). The display monitor honours this as if a print
+# were active for one full timeout window, so a tap restarts the idle clock.
+_user_activity_ts        = 0.0
 
 def _get_display_brightness():
     display = CONFIG.get('display', {})
@@ -1642,6 +1657,12 @@ def display_monitor():
                 wake_screen()
                 all_done_since = None
             else:
+                # Honour recent user activity (tap-to-wake) as if a print were
+                # active for one full timeout window.
+                if _user_activity_ts and (time.time() - _user_activity_ts) < timeout_min * 60:
+                    wake_screen()
+                    all_done_since = None
+                    continue
                 if all_done_since is None:
                     all_done_since = time.time()
                 idle_secs = time.time() - all_done_since
