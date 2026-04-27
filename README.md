@@ -1,4 +1,4 @@
-# BambuHelperRT — v1.7.1
+# BambuHelperRT — v1.7.2
 
 A Bambu Lab printer monitor dashboard running on a **Microsoft Surface RT** with Debian 12.
 Connects to one or two printers simultaneously via Bambu Cloud MQTT and displays live status
@@ -358,6 +358,9 @@ The web server binds to `0.0.0.0` (all interfaces) to support optional LAN acces
 ---
 
 ## Changelog
+
+### v1.7.2 — April 2026
+- **Fix kiosk failing to start after v1.7.1** — `bambuhelper-noblank.service` was claiming `/dev/tty1` (`StandardInput=tty` + `TTYPath=`), which raced with LightDM/the kiosk for ownership of tty1 and prevented the dashboard browser from launching on boot. The service now redirects setterm output to `/dev/tty1` without owning the TTY.
 
 ### v1.7.1 — April 2026
 - **Sleep/wake hardening (installer)** — `install.sh` now masks `sleep.target`, `suspend.target`, `hibernate.target`, and `hybrid-sleep.target`; drops a `logind.conf.d` snippet that ignores lid switch, power key, and idle action; installs a `bambuhelper-noblank.service` oneshot that runs `setterm --blank 0 --powerdown 0 --powersave off` against `/dev/tty1` to disable the kernel framebuffer console blanker; and adds a udev rule pinning `power/control=on` for `backlight`, `drm`, and `graphics` devices so the kernel never autosuspends the display controller. Re-run `sudo bash install.sh` after updating to apply these.

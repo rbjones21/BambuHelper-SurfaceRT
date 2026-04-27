@@ -110,23 +110,19 @@ EOF
 # --- kernel console blanker off ---------------------------------------------
 # fbcon blanks the framebuffer after ~10 minutes independently of X. On Tegra
 # this routes through the same display-controller power path that hangs the
-# GPU. setterm has to be run against an actual tty, so we do it in a oneshot
-# unit at boot.
+# GPU. Run setterm redirected to /dev/tty1 *without* claiming the TTY (no
+# StandardInput=tty / TTYPath=...), otherwise it races with the display
+# manager / kiosk for ownership of tty1 and the kiosk fails to start.
 cat > /etc/systemd/system/bambuhelper-noblank.service << 'EOF'
 [Unit]
 Description=BambuHelper - disable kernel console blanking
-After=systemd-user-sessions.service
-DefaultDependencies=no
+After=multi-user.target
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-StandardInput=tty
-StandardOutput=tty
-TTYPath=/dev/tty1
-ExecStart=/bin/setterm --blank 0 --powerdown 0 --powersave off
-# Belt-and-braces: also write the sysfs knobs the kernel exposes
-ExecStart=/bin/sh -c 'echo 0 > /sys/module/kernel/parameters/consoleblank 2>/dev/null || true'
+# Redirect to tty1 without owning it, so getty/LightDM/X are not disturbed.
+ExecStart=/bin/sh -c '/bin/setterm --blank 0 --powerdown 0 --powersave off >/dev/tty1 2>/dev/null || true'
 
 [Install]
 WantedBy=multi-user.target
