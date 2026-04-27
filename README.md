@@ -1,4 +1,4 @@
-# BambuHelperRT — v1.7.4
+# BambuHelperRT — v1.7.5
 
 A Bambu Lab printer monitor dashboard running on a **Microsoft Surface RT** with Debian 12.
 Connects to one or two printers simultaneously via Bambu Cloud MQTT and displays live status
@@ -358,6 +358,9 @@ The web server binds to `0.0.0.0` (all interfaces) to support optional LAN acces
 ---
 
 ## Changelog
+
+### v1.7.5 — April 2026
+- **Fix `bambu-update` placeholder URL** — the updater script shipped with `YOUR_GITHUB_USERNAME` placeholders that were never substituted, so every OTA update from the dashboard “Update Now” button silently failed with `Failed to download bambu_server.py — check repo URL`. The `--check` mode also reported `Latest version: unknown`. Replaced both URLs with the real `rbjones21` repo. **In-UI updates now work**.
 
 ### v1.7.4 — April 2026
 - **Fix kiosk XAUTHORITY path** — `bambuhelper-kiosk.service` was pointing `XAUTHORITY` at `/root/.Xauthority`, which doesn't exist on a LightDM system. Chromium then failed with `Authorization required, but no authorization protocol specified` / `Missing X server or $DISPLAY` and exited 1. Updated to `/var/run/lightdm/root/:0`, matching the path Xorg is actually launched with (`Xorg :0 -seat seat0 -auth /var/run/lightdm/root/:0`). Same fix that was previously applied to the Python display monitor in v1.6.4.

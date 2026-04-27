@@ -5,8 +5,8 @@
 
 set -e
 
-REPO="https://github.com/YOUR_GITHUB_USERNAME/BambuHelper-SurfaceRT"
-RAW="https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/BambuHelper-SurfaceRT/main"
+REPO="https://github.com/rbjones21/BambuHelper-SurfaceRT"
+RAW="https://raw.githubusercontent.com/rbjones21/BambuHelper-SurfaceRT/main"
 INSTALL_DIR="/opt/bambuhelper"
 VERSION_FILE="/opt/bambuhelper/version.txt"
 CONFIG_FILE="/etc/bambuhelper/config.json"
