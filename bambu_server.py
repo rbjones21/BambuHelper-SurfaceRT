@@ -648,7 +648,10 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 # ---------------------------------------------------------------------------
 # Access control — runs before every request
 # ---------------------------------------------------------------------------
-_OPEN_PATHS = {'/api/auth/pin', '/api/auth/logout'}
+# Endpoints that are always reachable without authentication. /api/display/wake
+# is here so the kiosk's tap-to-wake works even when local PIN protection is on
+# (waking the screen is harmless and gating it would defeat the feature).
+_OPEN_PATHS = {'/api/auth/pin', '/api/auth/logout', '/api/display/wake'}
 
 @app.before_request
 def access_control():
