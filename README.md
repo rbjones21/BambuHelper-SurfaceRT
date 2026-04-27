@@ -1,4 +1,4 @@
-# BambuHelperRT — v1.7.11
+# BambuHelperRT — v1.7.12
 
 A Bambu Lab printer monitor dashboard running on a **Microsoft Surface RT** with Debian 12.
 Connects to one or two printers simultaneously via Bambu Cloud MQTT and displays live status
@@ -358,6 +358,9 @@ The web server binds to `0.0.0.0` (all interfaces) to support optional LAN acces
 ---
 
 ## Changelog
+
+### v1.7.12 — April 2026
+- **Larger 5-day forecast cards** — wider cards, 72×72 colour icons (was 48×48), and bigger day-name / hi-lo / description text for readability across the kiosk.
 
 ### v1.7.11 — April 2026
 - **Hotfix for v1.7.10 dashboard** — the previous release shipped with a corrupted `updateWeather()` JavaScript block that threw a syntax error on page load, leaving the dashboard blank below the header (no printers, no idle clock). Function rewritten cleanly.
