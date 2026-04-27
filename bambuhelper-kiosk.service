@@ -7,7 +7,7 @@ Wants=bambuhelper.service
 Type=simple
 User=root
 Environment=DISPLAY=:0
-Environment=XAUTHORITY=/root/.Xauthority
+Environment=XAUTHORITY=/var/run/lightdm/root/:0
 # Wait for the Flask server to be ready
 ExecStartPre=/bin/sleep 5
 ExecStart=/usr/bin/chromium \
