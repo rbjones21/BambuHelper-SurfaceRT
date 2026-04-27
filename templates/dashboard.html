@@ -1116,12 +1116,22 @@ socket.on('state_update', render);
 socket.on('system_updating', function(data) {
   document.getElementById('update-overlay').classList.add('active');
   document.getElementById('update-overlay-msg').textContent = data.message || 'Installing update — please wait…';
-  // Poll until server is back, then hard reload
+  // Robust poll: wait for the server to go DOWN, then back UP, then hard reload.
+  // The old version of this code reloaded as soon as /api/version responded,
+  // which fired against the still-alive old server before bambu-update had
+  // actually triggered the systemctl restart, so the page came back showing
+  // the old version.
+  var startTime = Date.now();
+  var sawDown   = false;
   var poll = setInterval(function() {
+    if (Date.now() - startTime > 120000) {
+      clearInterval(poll); location.reload(true); return;
+    }
     fetch('/api/version', {cache:'no-store'}).then(function(r) {
-      if (r.ok) { clearInterval(poll); location.reload(true); }
-    }).catch(function() {});
-  }, 3000);
+      if (!r.ok) { sawDown = true; return; }
+      if (sawDown) { clearInterval(poll); location.reload(true); }
+    }).catch(function() { sawDown = true; });
+  }, 2000);
 });
 fetch('/api/state').then(r => r.json()).then(render).catch(() => {});
 </script>

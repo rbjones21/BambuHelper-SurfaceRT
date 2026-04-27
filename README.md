@@ -1,4 +1,4 @@
-# BambuHelperRT — v1.7.5
+# BambuHelperRT — v1.7.6
 
 A Bambu Lab printer monitor dashboard running on a **Microsoft Surface RT** with Debian 12.
 Connects to one or two printers simultaneously via Bambu Cloud MQTT and displays live status
@@ -358,6 +358,10 @@ The web server binds to `0.0.0.0` (all interfaces) to support optional LAN acces
 ---
 
 ## Changelog
+
+### v1.7.6 — April 2026
+- **Fix dashboard not auto-reloading after OTA update** — the post-update poll reloaded as soon as `/api/version` responded, but the server stays alive for ~5–10 s while `bambu-update` downloads files, so the poll succeeded against the *old* server and reloaded the page before the actual restart, leaving the dashboard showing the previous version. Reworked both `dashboard.html` and `settings.html` polls to first wait for the server to go DOWN (proves the restart fired), then wait for it to come back UP, with a 120 s safety timeout.
+- **Add “Reinstall” button** to Settings → About — always visible (independent of whether a newer version is available); re-downloads and reinstalls the current version through the same OTA path so the update flow can be tested end-to-end without a real version bump.
 
 ### v1.7.5 — April 2026
 - **Fix `bambu-update` placeholder URL** — the updater script shipped with `YOUR_GITHUB_USERNAME` placeholders that were never substituted, so every OTA update from the dashboard “Update Now” button silently failed with `Failed to download bambu_server.py — check repo URL`. The `--check` mode also reported `Latest version: unknown`. Replaced both URLs with the real `rbjones21` repo. **In-UI updates now work**.

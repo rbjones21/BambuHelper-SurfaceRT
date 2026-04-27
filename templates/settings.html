@@ -667,6 +667,7 @@
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <button class="btn" onclick="checkForUpdate()">Check for Updates</button>
           <button id="btn-do-update" class="btn" style="display:none;background:var(--accent);color:#000" onclick="doUpdate()">Update Now</button>
+          <button id="btn-reinstall" class="btn" onclick="doUpdate(true)" title="Re-download and reinstall the current version (test the OTA flow)">Reinstall</button>
         </div>
         <div id="update-status" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
       </div>
@@ -1500,21 +1501,50 @@ async function checkForUpdate() {
   }
 }
 
-async function doUpdate() {
-  if (!confirm(`Apply update? The server will restart automatically.`)) return;
+async function doUpdate(reinstall) {
+  const msg = reinstall
+    ? 'Reinstall the current version? The server will restart.'
+    : 'Apply update? The server will restart automatically.';
+  if (!confirm(msg)) return;
   document.getElementById('btn-do-update').disabled = true;
+  document.getElementById('btn-reinstall').disabled = true;
   document.getElementById('update-status').innerHTML =
     '<span style="color:var(--accent)">&#9881; Updating… server will restart and this page will reload automatically.</span>';
+
+  // Capture the version we started with so we can detect a real restart.
+  const startVersion = document.getElementById('ver-local').textContent.trim();
+  const startTime    = Date.now();
+  let sawDown        = false;
+
   try {
     await fetch('/api/update', { method: 'POST' });
   } catch(e) {}
-  // Poll until the server comes back, then reload
+
+  // Robust poll:
+  //   1. Wait for the server to go DOWN (proves the restart actually happened).
+  //   2. Then wait for it to come back UP and reload.
+  //   3. Hard timeout at 120 s — reload anyway so the user isn't stuck.
   const poll = setInterval(async () => {
+    if (Date.now() - startTime > 120000) {
+      clearInterval(poll);
+      location.reload(true);
+      return;
+    }
     try {
       const r = await fetch('/api/version', {cache:'no-store'});
-      if (r.ok) { clearInterval(poll); location.reload(true); }
-    } catch(e) {}
-  }, 3000);
+      if (!r.ok) { sawDown = true; return; }
+      if (sawDown) { clearInterval(poll); location.reload(true); return; }
+      // Server is still up — if version already changed, reload.
+      const v = await r.json();
+      if (v && v.local && v.local !== startVersion) {
+        clearInterval(poll);
+        location.reload(true);
+      }
+    } catch(e) {
+      // Network error == server is down mid-restart.
+      sawDown = true;
+    }
+  }, 2000);
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────
