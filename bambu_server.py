@@ -1506,6 +1506,7 @@ def mqtt_worker(printer_cfg):
             client.connect(host, port, keepalive=60)
             client.loop_start()
             retry_delay = 5
+            disconnected_since = 0.0
             while True:
                 time.sleep(10)
                 with state_lock:
@@ -1514,6 +1515,19 @@ def mqtt_worker(printer_cfg):
                 if connected and last > 0 and (time.time() - last) > 120:
                     log.warning(f"[{printer_id}] No messages for 120s, reconnecting")
                     break
+                # Watchdog: if paho's internal auto-reconnect hasn't restored the
+                # connection within 30s of a disconnect, tear down and rebuild the
+                # client. Without this, a network outage that triggers on_disconnect
+                # (e.g. rc=16 keepalive) can leave the worker wedged for hours
+                # because the break condition above requires connected=True.
+                if not connected:
+                    if disconnected_since == 0.0:
+                        disconnected_since = time.time()
+                    elif (time.time() - disconnected_since) > 30:
+                        log.warning(f"[{printer_id}] Still disconnected after 30s, rebuilding client")
+                        break
+                else:
+                    disconnected_since = 0.0
         except Exception as e:
             log.error(f"[{printer_id}] Error: {e}")
         finally:
