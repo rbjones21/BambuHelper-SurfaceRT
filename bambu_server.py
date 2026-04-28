@@ -10,6 +10,7 @@ import os
 import re
 import base64
 import shutil
+import socket
 import ssl
 import subprocess
 import threading
@@ -910,6 +911,42 @@ def api_thumbnail(printer_id):
 # ---------------------------------------------------------------------------
 # API — Network (signal status)
 # ---------------------------------------------------------------------------
+# Internet reachability probe — Wi-Fi can stay associated (nmcli/iw show
+# SSID + signal) while DNS / upstream is dead, which is exactly what
+# happened during the Apr 27 23:41 outage that left both MQTT clients
+# disconnected for 9 hours but the dashboard still showing "Online".
+# We check by opening a TCP socket to 8.8.8.8:53 (no DNS, no payload),
+# cached so /api/network stays cheap.
+_inet_lock          = threading.Lock()
+_inet_last_check    = 0.0
+_inet_last_ok       = 0.0   # epoch of most recent successful probe
+_INET_CHECK_TTL     = 20    # re-probe at most every 20s
+_INET_TIMEOUT       = 2.0
+
+def _check_internet():
+    """Return True if a TCP connect to 8.8.8.8:53 succeeds within timeout."""
+    global _inet_last_check, _inet_last_ok
+    now = time.time()
+    with _inet_lock:
+        if (now - _inet_last_check) < _INET_CHECK_TTL:
+            return (now - _inet_last_ok) < (_INET_CHECK_TTL * 2)
+        _inet_last_check = now
+    ok = False
+    s = None
+    try:
+        s = socket.create_connection(("8.8.8.8", 53), timeout=_INET_TIMEOUT)
+        ok = True
+    except Exception:
+        ok = False
+    finally:
+        if s is not None:
+            try: s.close()
+            except Exception: pass
+    if ok:
+        with _inet_lock:
+            _inet_last_ok = time.time()
+    return ok
+
 @app.route('/api/network')
 def api_network():
     try:
@@ -921,10 +958,22 @@ def api_network():
         if m: signal = int(m.group(1))
         m = re.search(r'SSID:\s*(.+)', output)
         if m: ssid = m.group(1).strip()
+        internet = _check_internet()
+        # Stale-tolerant: if a recent probe succeeded, treat as up even if the
+        # current one missed (avoids flicker on transient packet loss).
+        with _inet_lock:
+            last_ok_age = time.time() - _inet_last_ok if _inet_last_ok else None
+        base = {"ok": True, "ssid": ssid, "internet": internet,
+                "last_ok_age": last_ok_age}
         if signal is None:
-            return jsonify({"ok": True, "signal": None, "ssid": ssid, "quality": "unknown"})
-        quality = 'good' if signal > -60 else 'fair' if signal > -75 else 'poor'
-        return jsonify({"ok": True, "signal": signal, "ssid": ssid, "quality": quality})
+            base.update(signal=None, quality="unknown" if internet else "down")
+            return jsonify(base)
+        if not internet:
+            quality = 'down'
+        else:
+            quality = 'good' if signal > -60 else 'fair' if signal > -75 else 'poor'
+        base.update(signal=signal, quality=quality)
+        return jsonify(base)
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 

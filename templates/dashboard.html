@@ -916,7 +916,19 @@ async function updateNetStatus() {
   try {
     const res  = await fetch('/api/network');
     const data = await res.json();
-    if (data.ok && data.signal) {
+    if (!data.ok) {
+      dot.className     = 'net-dot err';
+      label.textContent = 'Net error';
+      return;
+    }
+    // internet:false means Wi-Fi associated but upstream unreachable
+    // (DNS/gateway dead). Treat as offline regardless of signal.
+    if (data.internet === false) {
+      dot.className     = 'net-dot err';
+      label.textContent = 'No internet';
+      return;
+    }
+    if (data.signal) {
       const bars = data.signal > -60 ? '▂▄▆█' : data.signal > -70 ? '▂▄▆·' : data.signal > -80 ? '▂▄··' : '▂···';
       dot.className     = `net-dot ${data.quality === 'good' ? 'ok' : data.quality === 'fair' ? 'warn' : 'err'}`;
       label.textContent = `${bars} ${data.signal}dBm`;
@@ -925,8 +937,9 @@ async function updateNetStatus() {
       label.textContent = 'Online';
     }
   } catch(e) {
-    dot.className     = 'net-dot ok';
-    label.textContent = 'Online';
+    // Local fetch failed — server itself is unreachable from the kiosk
+    dot.className     = 'net-dot err';
+    label.textContent = 'Server down';
   }
 }
 setInterval(updateNetStatus, 30000);
