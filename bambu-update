@@ -87,6 +87,10 @@ for f in "${FILES[@]}"; do
   curl -sf "$RAW/$f" -o "$TMP/$f" || error "Failed to download $f — check repo URL"
 done
 
+# bambu-system-update is installed to /usr/local/bin, refresh it too if changed
+info "  Fetching bambu-system-update"
+curl -sf "$RAW/bambu-system-update" -o "$TMP/bambu-system-update" || warn "Could not fetch bambu-system-update (continuing)"
+
 # ── Backup current install ──
 info "Backing up current version..."
 BACKUP="/opt/bambuhelper-backup-$(date +%Y%m%d-%H%M%S)"
@@ -98,6 +102,11 @@ info "Applying update..."
 for f in "${FILES[@]}"; do
   cp "$TMP/$f" "$INSTALL_DIR/$f"
 done
+if [[ -f "$TMP/bambu-system-update" ]]; then
+  install -m 0755 "$TMP/bambu-system-update" /usr/local/bin/bambu-system-update
+  mkdir -p /var/lib/bambuhelper
+  info "  Installed /usr/local/bin/bambu-system-update"
+fi
 
 # ── Restart services ──
 info "Restarting services..."

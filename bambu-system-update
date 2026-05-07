@@ -1,0 +1,190 @@
+#!/bin/bash
+# bambu-system-update — Debian apt updater wrapper for BambuHelper Surface RT
+# Usage:
+#   bambu-system-update --check        Run apt-get update + list upgradable, write JSON state
+#   bambu-system-update --apply        Run apt-get full-upgrade -y, then optional reboot
+#   bambu-system-update --state        Print last cached state JSON (no network)
+#
+# State file: /var/lib/bambuhelper/system_updates.json
+# Log file:   /var/log/bambu-system-update.log
+
+set -u
+
+STATE_DIR="/var/lib/bambuhelper"
+STATE_FILE="$STATE_DIR/system_updates.json"
+LOCK_FILE="/var/lock/bambu-system-update.lock"
+LOG_FILE="/var/log/bambu-system-update.log"
+
+mkdir -p "$STATE_DIR"
+touch "$LOG_FILE" 2>/dev/null || true
+
+log()  { echo "$(date '+%Y-%m-%d %H:%M:%S') $*" | tee -a "$LOG_FILE" >&2; }
+
+# Atomically write JSON state
+write_state() {
+  local tmp
+  tmp=$(mktemp "$STATE_FILE.XXXXXX") || return 1
+  printf '%s\n' "$1" > "$tmp"
+  mv -f "$tmp" "$STATE_FILE"
+  chmod 0644 "$STATE_FILE" 2>/dev/null || true
+}
+
+json_escape() {
+  # Escape a string for safe inclusion in a JSON string literal.
+  python3 -c 'import json,sys; sys.stdout.write(json.dumps(sys.stdin.read()))' 2>/dev/null \
+    || sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e ':a;N;$!ba;s/\n/\\n/g' <<< "$1" | sed 's/^/"/;s/$/"/'
+}
+
+# Acquire a non-blocking lock so two operations don't collide.
+acquire_lock() {
+  exec 9>"$LOCK_FILE" || return 1
+  if ! flock -n 9; then
+    return 1
+  fi
+}
+
+cmd_check() {
+  if ! acquire_lock; then
+    log "check: another bambu-system-update is already running"
+    exit 2
+  fi
+  if [[ $EUID -ne 0 ]]; then
+    log "check: must run as root"
+    exit 1
+  fi
+
+  local started_at
+  started_at=$(date +%s)
+
+  log "check: starting apt-get update"
+  # Mark "checking" in state so the UI can show progress.
+  write_state "{\"checking\":true,\"started_at\":$started_at}"
+
+  local upd_log
+  upd_log=$(mktemp)
+  if ! apt-get update -o Acquire::Retries=2 >"$upd_log" 2>&1; then
+    local err
+    err=$(json_escape "$(tail -n 20 "$upd_log")")
+    rm -f "$upd_log"
+    log "check: apt-get update failed"
+    write_state "{\"checking\":false,\"ok\":false,\"checked_at\":$(date +%s),\"error\":$err}"
+    exit 1
+  fi
+  rm -f "$upd_log"
+
+  # Parse upgradable list. `apt list --upgradable` lines look like:
+  #   pkgname/source version arch [upgradable from: oldver]
+  local raw
+  raw=$(LC_ALL=C apt list --upgradable 2>/dev/null | awk -F/ 'NR>1 && $1!="" {print $1}' | sort -u)
+
+  local count=0
+  local items_json="[]"
+  if [[ -n "$raw" ]]; then
+    count=$(printf '%s\n' "$raw" | wc -l | tr -d ' ')
+    # Build JSON array of names (cap to first 200 for sanity)
+    items_json=$(printf '%s\n' "$raw" | head -n 200 \
+      | python3 -c 'import json,sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))' 2>/dev/null)
+    [[ -z "$items_json" ]] && items_json="[]"
+  fi
+
+  local reboot_required="false"
+  [[ -f /var/run/reboot-required ]] && reboot_required="true"
+
+  local now
+  now=$(date +%s)
+  write_state "{\"checking\":false,\"ok\":true,\"checked_at\":$now,\"count\":$count,\"reboot_required\":$reboot_required,\"packages\":$items_json}"
+  log "check: complete — $count package(s) upgradable, reboot_required=$reboot_required"
+}
+
+cmd_apply() {
+  if ! acquire_lock; then
+    log "apply: another bambu-system-update is already running"
+    exit 2
+  fi
+  if [[ $EUID -ne 0 ]]; then
+    log "apply: must run as root"
+    exit 1
+  fi
+
+  log "apply: starting full-upgrade"
+  local started_at
+  started_at=$(date +%s)
+  write_state "{\"applying\":true,\"started_at\":$started_at}"
+
+  export DEBIAN_FRONTEND=noninteractive
+  local apply_log
+  apply_log=$(mktemp)
+  local rc=0
+  apt-get update -o Acquire::Retries=2 >>"$apply_log" 2>&1 || rc=$?
+  if [[ $rc -eq 0 ]]; then
+    apt-get -y \
+      -o Dpkg::Options::="--force-confdef" \
+      -o Dpkg::Options::="--force-confold" \
+      full-upgrade >>"$apply_log" 2>&1 || rc=$?
+  fi
+  apt-get -y autoremove >>"$apply_log" 2>&1 || true
+  apt-get -y autoclean >>"$apply_log" 2>&1 || true
+
+  cat "$apply_log" >> "$LOG_FILE"
+  local tail_text
+  tail_text=$(json_escape "$(tail -n 30 "$apply_log")")
+  rm -f "$apply_log"
+
+  local reboot_required="false"
+  [[ -f /var/run/reboot-required ]] && reboot_required="true"
+
+  local now
+  now=$(date +%s)
+  if [[ $rc -ne 0 ]]; then
+    log "apply: failed rc=$rc"
+    write_state "{\"applying\":false,\"ok\":false,\"applied_at\":$now,\"reboot_required\":$reboot_required,\"error\":$tail_text}"
+    exit $rc
+  fi
+
+  write_state "{\"applying\":false,\"ok\":true,\"applied_at\":$now,\"reboot_required\":$reboot_required,\"log_tail\":$tail_text}"
+  log "apply: complete — reboot_required=$reboot_required"
+
+  # Refresh upgradable count so the UI immediately reflects "0 updates".
+  cmd_refresh_after_apply &
+
+  if [[ "$reboot_required" == "true" ]]; then
+    log "apply: rebooting in 5 seconds"
+    ( sleep 5 && /sbin/reboot ) &
+  fi
+}
+
+# After apply, regenerate state with a fresh upgradable list (no full network update needed).
+cmd_refresh_after_apply() {
+  local raw count items_json reboot_required now
+  raw=$(LC_ALL=C apt list --upgradable 2>/dev/null | awk -F/ 'NR>1 && $1!="" {print $1}' | sort -u)
+  count=0
+  items_json="[]"
+  if [[ -n "$raw" ]]; then
+    count=$(printf '%s\n' "$raw" | wc -l | tr -d ' ')
+    items_json=$(printf '%s\n' "$raw" | head -n 200 \
+      | python3 -c 'import json,sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))' 2>/dev/null)
+    [[ -z "$items_json" ]] && items_json="[]"
+  fi
+  reboot_required="false"
+  [[ -f /var/run/reboot-required ]] && reboot_required="true"
+  now=$(date +%s)
+  write_state "{\"checking\":false,\"ok\":true,\"checked_at\":$now,\"count\":$count,\"reboot_required\":$reboot_required,\"packages\":$items_json,\"post_apply\":true}"
+}
+
+cmd_state() {
+  if [[ -f "$STATE_FILE" ]]; then
+    cat "$STATE_FILE"
+  else
+    echo '{"ok":false,"error":"no state yet"}'
+  fi
+}
+
+case "${1:-}" in
+  --check)  cmd_check ;;
+  --apply)  cmd_apply ;;
+  --state)  cmd_state ;;
+  *)
+    echo "Usage: $0 --check | --apply | --state" >&2
+    exit 64
+    ;;
+esac

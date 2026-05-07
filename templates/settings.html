@@ -625,6 +625,24 @@
         </div>
         <div style="font-size:11px;color:var(--muted);margin-top:3px">Backup includes printer tokens — store securely</div>
       </div>
+      <!-- System Updates (Debian / apt) -->
+      <div class="field-row" style="margin-bottom:14px">
+        <label>System Updates</label>
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:6px">
+          <span style="font-size:12px;color:var(--muted)">Pending packages:</span>
+          <span id="sys-upd-count" style="font-family:monospace;font-size:14px;color:var(--muted)">…</span>
+          <span style="font-size:12px;color:var(--muted)">Last checked:</span>
+          <span id="sys-upd-checked" style="font-family:monospace;font-size:13px;color:var(--muted)">never</span>
+          <span id="sys-upd-reboot" style="display:none;font-size:12px;color:#ffa500">⚠ Reboot required</span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="btn-sys-check"   class="sys-btn" onclick="checkSystemUpdates()">Check for Updates</button>
+          <button id="btn-sys-update"  class="sys-btn" style="display:none;background:var(--accent);color:#000;border-color:var(--accent)" onclick="doSystemUpdate()">Install Updates</button>
+          <button id="btn-sys-details" class="sys-btn" style="display:none" onclick="toggleSystemUpdateDetails()">Show packages</button>
+        </div>
+        <div id="sys-upd-status" style="font-size:12px;color:var(--muted);margin-top:6px"></div>
+        <pre id="sys-upd-packages" style="display:none;margin-top:8px;max-height:140px;overflow:auto;background:var(--track);padding:8px;border-radius:6px;font-size:11px;color:var(--text);white-space:pre-wrap;word-break:break-all"></pre>
+      </div>
       <!-- Device controls -->
       <div class="field-row">
         <label>Device</label>
@@ -1632,6 +1650,125 @@ async function doUpdate(reinstall) {
   }, 2000);
 }
 
+// ── System (apt) updates ───────────────────────────────────────────────────
+let _sysUpdPollTimer = null;
+let _sysUpdLastPackages = [];
+
+function _fmtAge(ts) {
+  if (!ts) return 'never';
+  const s = Math.max(0, Math.floor(Date.now()/1000) - ts);
+  if (s < 60)     return s + 's ago';
+  if (s < 3600)   return Math.floor(s/60) + 'm ago';
+  if (s < 86400)  return Math.floor(s/3600) + 'h ago';
+  return Math.floor(s/86400) + 'd ago';
+}
+
+function _renderSystemUpdates(state) {
+  const countEl   = document.getElementById('sys-upd-count');
+  const checkedEl = document.getElementById('sys-upd-checked');
+  const rebootEl  = document.getElementById('sys-upd-reboot');
+  const updBtn    = document.getElementById('btn-sys-update');
+  const detBtn    = document.getElementById('btn-sys-details');
+  const checkBtn  = document.getElementById('btn-sys-check');
+  const statusEl  = document.getElementById('sys-upd-status');
+  if (!countEl) return;
+
+  const busy = !!(state && (state.checking || state.applying));
+  checkBtn.disabled = busy;
+  updBtn.disabled   = busy;
+
+  if (state && state.checking) {
+    statusEl.textContent = 'Checking for system updates…';
+    countEl.textContent  = '…';
+    return;
+  }
+  if (state && state.applying) {
+    statusEl.textContent = 'Installing system updates — this may take several minutes…';
+    return;
+  }
+
+  const count = (state && typeof state.count === 'number') ? state.count : 0;
+  countEl.textContent = String(count);
+  countEl.style.color = count > 0 ? 'var(--accent)' : 'var(--muted)';
+  checkedEl.textContent = _fmtAge(state && state.checked_at);
+  rebootEl.style.display = (state && state.reboot_required) ? '' : 'none';
+  updBtn.style.display   = count > 0 ? '' : 'none';
+  _sysUpdLastPackages    = (state && Array.isArray(state.packages)) ? state.packages : [];
+  detBtn.style.display   = _sysUpdLastPackages.length ? '' : 'none';
+
+  if (state && state.error) {
+    statusEl.textContent = 'Error: ' + state.error;
+  } else if (state && state.post_apply && count === 0) {
+    statusEl.textContent = 'System is up to date.';
+  } else if (count === 0 && state && state.checked_at) {
+    statusEl.textContent = 'System is up to date.';
+  } else if (count > 0) {
+    statusEl.textContent = count + ' update' + (count === 1 ? '' : 's') + ' available.';
+  } else {
+    statusEl.textContent = '';
+  }
+}
+
+async function loadSystemUpdates() {
+  try {
+    const r = await fetch('/api/system/updates', {cache:'no-store'});
+    const s = await r.json();
+    _renderSystemUpdates(s);
+    return s;
+  } catch(e) { return null; }
+}
+
+function _startSysUpdPolling() {
+  if (_sysUpdPollTimer) return;
+  _sysUpdPollTimer = setInterval(async () => {
+    const s = await loadSystemUpdates();
+    if (!s || (!s.checking && !s.applying)) {
+      clearInterval(_sysUpdPollTimer);
+      _sysUpdPollTimer = null;
+    }
+  }, 3000);
+}
+
+async function checkSystemUpdates() {
+  const statusEl = document.getElementById('sys-upd-status');
+  statusEl.textContent = 'Checking for system updates…';
+  try {
+    const r = await fetch('/api/system/check_updates', {method:'POST'});
+    const j = await r.json();
+    if (!j.ok) { statusEl.textContent = j.error || 'Check failed'; return; }
+    _startSysUpdPolling();
+  } catch(e) {
+    statusEl.textContent = 'Failed to start check.';
+  }
+}
+
+async function doSystemUpdate() {
+  if (!confirm('Install all pending system (Debian/apt) updates? This may take several minutes and the device may reboot if a kernel update is included.')) return;
+  const statusEl = document.getElementById('sys-upd-status');
+  statusEl.textContent = 'Starting system update…';
+  try {
+    const r = await fetch('/api/system/update', {method:'POST'});
+    const j = await r.json();
+    if (!j.ok) { statusEl.textContent = j.error || 'Update failed to start'; return; }
+    _startSysUpdPolling();
+  } catch(e) {
+    statusEl.textContent = 'Failed to start update.';
+  }
+}
+
+function toggleSystemUpdateDetails() {
+  const pre = document.getElementById('sys-upd-packages');
+  const btn = document.getElementById('btn-sys-details');
+  if (pre.style.display === 'none' || !pre.style.display) {
+    pre.textContent  = _sysUpdLastPackages.join('\n');
+    pre.style.display = '';
+    btn.textContent   = 'Hide packages';
+  } else {
+    pre.style.display = 'none';
+    btn.textContent   = 'Show packages';
+  }
+}
+
 // ── Boot ───────────────────────────────────────────────────────────────────
 async function checkUpdateSuccess() {
   // After reload, if we recorded a starting version and it changed, show toast.
@@ -1654,6 +1791,7 @@ async function checkUpdateSuccess() {
 
 init();
 loadVersionInfo().then(checkUpdateSuccess);
+loadSystemUpdates();
 openHashCard();
 
 // ── Tap-to-wake (mirror of dashboard) ──────────────────────────────────────

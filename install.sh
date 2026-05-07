@@ -30,11 +30,14 @@ cp config.cloud-example.json /opt/bambuhelper/
 cp version.txt /opt/bambuhelper/
 
 # Install update and rollback commands globally
-cp bambu-update   /usr/local/bin/bambu-update
-cp bambu-rollback /usr/local/bin/bambu-rollback
+cp bambu-update         /usr/local/bin/bambu-update
+cp bambu-rollback       /usr/local/bin/bambu-rollback
+cp bambu-system-update  /usr/local/bin/bambu-system-update
 chmod +x /usr/local/bin/bambu-update
 chmod +x /usr/local/bin/bambu-rollback
-echo "      Update commands installed: bambu-update, bambu-rollback"
+chmod +x /usr/local/bin/bambu-system-update
+mkdir -p /var/lib/bambuhelper
+echo "      Update commands installed: bambu-update, bambu-rollback, bambu-system-update"
 
 if [ ! -f /etc/bambuhelper/config.json ]; then
     cp config.json /etc/bambuhelper/config.json

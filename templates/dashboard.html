@@ -344,6 +344,10 @@
     <span style="color:#00c8ff;font-size:13px;flex:1" id="update-avail-msg"></span>
     <span style="background:#00c8ff;color:#000;font-size:12px;font-weight:700;padding:5px 12px;border-radius:5px;white-space:nowrap">Update Now →</span>
   </a>
+  <a href="/settings" id="sys-update-avail-bar" style="display:none;background:#3d2a00;border-bottom:1px solid #ffa500;padding:8px 16px;align-items:center;gap:12px;text-decoration:none;cursor:pointer">
+    <span style="color:#ffcc66;font-size:13px;flex:1" id="sys-update-avail-msg"></span>
+    <span style="background:#ffa500;color:#000;font-size:12px;font-weight:700;padding:5px 12px;border-radius:5px;white-space:nowrap">Install →</span>
+  </a>
   <div id="printers"></div>
   <div id="idle-clock">
     <div class="idle-time" id="idle-time-display">--:--</div>
@@ -1148,6 +1152,24 @@ async function checkForUpdate() {
 }
 checkForUpdate();
 setInterval(checkForUpdate, 6 * 3600 * 1000); // re-check every 6 hours
+
+// ── System (apt) updates available indicator ──────────────────────────────
+async function checkSystemUpdatesIndicator() {
+  try {
+    const s   = await fetch('/api/system/updates', {cache:'no-store'}).then(r => r.json());
+    const bar = document.getElementById('sys-update-avail-bar');
+    const msg = document.getElementById('sys-update-avail-msg');
+    if (s && s.count && s.count > 0) {
+      const reboot = s.reboot_required ? '  ⚠ reboot required' : '';
+      msg.textContent = `\u2699 ${s.count} system update${s.count === 1 ? '' : 's'} available${reboot}`;
+      bar.style.display = 'flex';
+    } else {
+      bar.style.display = 'none';
+    }
+  } catch(e) {}
+}
+checkSystemUpdatesIndicator();
+setInterval(checkSystemUpdatesIndicator, 30 * 60 * 1000); // re-check every 30 min
 
 // ── WebSocket + initial state load ───────────────────────────────────────
 const socket = io();

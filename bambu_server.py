@@ -732,6 +732,71 @@ def api_update():
     threading.Thread(target=_do_update, daemon=True).start()
     return jsonify({'ok': True, 'message': 'Update started. Server will restart shortly.'})
 
+# ---------------------------------------------------------------------------
+# System (apt) update endpoints
+# ---------------------------------------------------------------------------
+_SYSTEM_UPDATE_SCRIPT = '/usr/local/bin/bambu-system-update'
+_SYSTEM_UPDATE_STATE  = '/var/lib/bambuhelper/system_updates.json'
+
+def _read_system_update_state():
+    try:
+        with open(_SYSTEM_UPDATE_STATE) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+@app.route('/api/system/updates')
+def api_system_updates():
+    """Return last cached apt-upgradable state (no network call)."""
+    state = _read_system_update_state() or {}
+    state.setdefault('ok', False)
+    state.setdefault('count', 0)
+    state.setdefault('checked_at', 0)
+    state.setdefault('reboot_required', False)
+    state.setdefault('checking', False)
+    state.setdefault('applying', False)
+    return jsonify(state)
+
+@app.route('/api/system/check_updates', methods=['POST'])
+def api_system_check_updates():
+    """Trigger a fresh apt-get update + upgradable scan in background."""
+    if not os.path.exists(_SYSTEM_UPDATE_SCRIPT):
+        return jsonify({'ok': False, 'error': 'bambu-system-update not installed'}), 500
+    state = _read_system_update_state() or {}
+    if state.get('checking') or state.get('applying'):
+        return jsonify({'ok': False, 'error': 'A system update operation is already in progress'}), 409
+
+    def _do_check():
+        try:
+            subprocess.run([_SYSTEM_UPDATE_SCRIPT, '--check'],
+                           check=False, timeout=300)
+        except Exception as exc:
+            log.error('System update check failed: %s', exc)
+
+    threading.Thread(target=_do_check, daemon=True).start()
+    return jsonify({'ok': True, 'message': 'Checking for system updates…'})
+
+@app.route('/api/system/update', methods=['POST'])
+def api_system_update():
+    """Apply pending apt updates (full-upgrade). May reboot the device."""
+    if not os.path.exists(_SYSTEM_UPDATE_SCRIPT):
+        return jsonify({'ok': False, 'error': 'bambu-system-update not installed'}), 500
+    state = _read_system_update_state() or {}
+    if state.get('checking') or state.get('applying'):
+        return jsonify({'ok': False, 'error': 'A system update operation is already in progress'}), 409
+
+    def _do_apply():
+        time.sleep(1)
+        try:
+            subprocess.run([_SYSTEM_UPDATE_SCRIPT, '--apply'],
+                           check=False, timeout=3600)
+        except Exception as exc:
+            log.error('System update apply failed: %s', exc)
+
+    socketio.emit('system_updating', {'message': 'Applying system updates — this may take several minutes…'})
+    threading.Thread(target=_do_apply, daemon=True).start()
+    return jsonify({'ok': True, 'message': 'System update started.'})
+
 @app.route('/api/token_expiry')
 def api_token_expiry():
     """Return token expiry info for all cloud-mode printers."""
